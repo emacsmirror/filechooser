@@ -38,8 +38,6 @@
     (define-key map (kbd "C-c C-k") #'filechooser-abort )
     (define-key map (kbd "C-f") #'filechooser-toggle-filter)
     (define-key map [remap abort-recursive-edit] #'filechooser-abort)
-    (define-key map (kbd "q") #'filechooser-abort)
-    (define-key map (kbd "q") #'filechooser-abort)
     map)
   "Keymap used as `override-global-map' for Dired based file selection.")
 
@@ -213,7 +211,6 @@ MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
       (filechooser--handle-exisiting-file result dir filters))))
 
 (defun filechooser-read-file-name-new-frame (prompt &optional mustmatch filters dir default)
-
   "Read a file name from a new minibuffer only frame.
 PROMPT is the minibuffer prompt. MUSTMATCH and DIR are as in `read-file-name'.
 FILTERS take the same form as elements of `filechooser-filters'. Only those
