@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.gnu.Emacs.FileChooser
+Exec=/usr/bin/emacsclient -e '(filechooser-start)'
