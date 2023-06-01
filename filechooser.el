@@ -56,7 +56,7 @@ again. If it is the symbol `uniquify', the FILENAME is made unique by appedning
 -N to it where N is a positive number. If it is a function, it is called with
 FILENAME and the return value is used as the filename.")
 
-(defvar filechooser-filters `(("Directories" file-directory-p . t)
+(defvar filechooser-filters `(("Directories" filechooser-file-directory-p . t)
                               ("Elisp files" ,(rx ".el" eos))
                               ("Not dot files" ,(rx bos (not ?.))))
   "An alist of (NAME FILTER . BOOL).
@@ -74,6 +74,12 @@ If BOOL is non-nil filter is active by default otherwise it is inactive.")
     (if (cdr (alist-get cand filechooser--filters nil nil #'equal))
         "Active"
       "Inactive")))
+
+(defun filechooser-file-directory-p (name)
+  "Return NAME is a directory relative to default or current Dired directory."
+    (file-directory-p (if (derived-mode-p 'dired-mode)
+                          (expand-file-name name (dired-current-directory))
+                        name)))
 
 (defun filechooser-toggle-filter (arg)
   "Toggle a filter.
@@ -250,7 +256,7 @@ editing session. FILTERS are in the format of `filechooser-filters'."
       (progn (dired (or dir default-directory))
              (push overriding-map emulation-mode-map-alists)
              (add-hook 'window-buffer-change-functions apply-filters)
-             (setq filechooser--filters (append filters filechooser-filters))
+             (setq filechooser--filters (append filechooser-filters filters))
              (funcall apply-filters nil)
              (unless (recursive-edit)
                (let ((files))
