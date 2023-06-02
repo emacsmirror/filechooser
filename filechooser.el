@@ -273,20 +273,22 @@ editing session. FILTERS are in the format of `filechooser-filters'."
 
 (defun filechooser--dired-jit-filter (beg end)
   "Hide files that don't match current filters from BEG to END."
-  (when-let ((active (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
-                                       filechooser--filters))))
-    (setq end (progn (goto-char end) (pos-eol)))
-    (setq beg (progn (goto-char beg) (pos-bol)))
-    (let ((pred (filechooser--filters-predicate active)))
-      (while (< (point) end)
-        (when-let ((name (dired-get-filename 'no-dir t)))
-          (alter-text-property (1- (point)) (pos-eol) 'invisible
-                               (lambda (val)
-                                 (setq val (ensure-list val))
-                                 (if (funcall pred name)
-                                     (cl-callf2 delq 'filechooser-filter val)
-                                   (cl-pushnew 'filechooser-filter val)))))
-        (forward-line))))
+  (if-let ((active (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
+                                     filechooser--filters))))
+      (progn
+        (setq end (progn (goto-char end) (forward-line 1) (pos-eol)))
+        (setq beg (progn (goto-char beg) (forward-line -1) (goto-char (pos-bol))))
+        (let ((pred (filechooser--filters-predicate active)))
+          (while (< (point) end)
+            (when-let ((name (dired-get-filename 'no-dir t)))
+              (alter-text-property (1- (point)) (pos-eol) 'invisible
+                                   (lambda (val)
+                                     (setq val (ensure-list val))
+                                     (if (funcall pred name)
+                                         (cl-callf2 delq 'filechooser-filter val)
+                                       (cl-pushnew 'filechooser-filter val)))))
+            (forward-line))))
+    (remove-from-invisibility-spec 'filechooser-filter))
   `(jit-lock-bounds ,beg . ,end))
 
 (defun filechooser-dired-new-frame (&optional dir filters)
