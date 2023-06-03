@@ -329,7 +329,6 @@ DIR is the directory for initial Dired buffer. FILTERS"
      (mapcar (lambda (file) (dbus-byte-array-to-string (butlast file)))
       (caar (alist-get "files" opts nil nil #'equal)))))))
 
-(provide 'filechooser)
 ;;; Starting Service
 ;;;###autoload
 (defun filechooser-start ()
@@ -352,4 +351,5 @@ It works by using d-bus and xdg-desktop-portal and implements
                           "GetAll" (lambda (&rest _args) :ignore) t)
     (dbus-register-service :session "org.gnu.Emacs.FileChooser")))
 
+(provide 'filechooser)
 ;;; filechooser.el ends here
