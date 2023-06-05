@@ -251,7 +251,8 @@ PROMPT and DIR are as in `read-directory-name'."
         (when marked
           (cl-callf nreverse (cdr dired-directory))
           (dolist (file marked)
-            (cl-pushnew file (cdr dired-directory) :test #'equal)))
+            (cl-pushnew file (cdr dired-directory) :test #'equal))
+          (cl-callf nreverse (cdr dired-directory)))
         (revert-buffer)))
     (setq marked nil unmarked nil timer nil))
 
@@ -259,7 +260,7 @@ PROMPT and DIR are as in `read-directory-name'."
     "Deal with change in mark from BEG to END with LENGTH."
     (when (and (derived-mode-p 'dired-mode)
                (eq length 0) (eq (1+ beg) end)
-               (not (invisible-p (1+ end))))
+               (not (invisible-p (1- (pos-eol)))))
       (save-excursion
         (goto-char beg)
         (when (and (re-search-forward dired-re-mark end t)
@@ -285,16 +286,23 @@ editing session. FILTERS are in the format of `filechooser-filters'."
         (selection-buffer (progn (setcdr filechooser--selection nil)
                                  (dired-noselect filechooser--selection))))
     (unwind-protect
-        (progn (dired (or dir default-directory))
-               (setcdr filechooser--selection
+        (progn (setcdr filechooser--selection
                        (dired-noselect (list (car filechooser--selection))))
-               (display-buffer selection-buffer '(display-buffer-in-side-window (side . bottom)))
+               (display-buffer selection-buffer '(display-buffer-in-side-window
+                                                  (side . left) (window-width . 0.3)))
+               (select-window (get-buffer-window (cdr filechooser--selection)))
+               (redisplay)
                (with-current-buffer (cdr filechooser--selection)
-                 (setq mode-line-format "Selected files"))
+                 (setq mode-line-format " Selected files")
+                 (dired-hide-details-mode)
+                 (add-hook 'jit-lock-functions #'filechooser--dired-jit-abbreviate 95 t)
+                 (jit-lock-mode t))
                (push overriding-map emulation-mode-map-alists)
                (add-hook 'window-buffer-change-functions apply-filters)
                (add-hook 'after-change-functions 'filechooser--process-changed-marks)
                (setq filechooser--filters (append filechooser-filters filters))
+               (other-window 1)
+               (dired (or dir default-directory))
                (funcall apply-filters nil)
                (unless (recursive-edit)
                  (with-current-buffer (cdr filechooser--selection)
@@ -327,6 +335,19 @@ editing session. FILTERS are in the format of `filechooser-filters'."
                                        (cl-pushnew 'filechooser-filter val)))))
             (forward-line))))
     (remove-from-invisibility-spec 'filechooser-filter))
+  `(jit-lock-bounds ,beg . ,end))
+
+(defun filechooser--dired-jit-abbreviate (beg end)
+  "Ellipesize filenames from BEG to END."
+  (setq end (progn (goto-char end) (pos-eol)))
+  (setq beg (progn (goto-char beg) (goto-char (pos-eol))))
+  (while (< (point) end)
+    (when-let ((file (dired-get-filename nil t))
+               (name (file-name-directory file))
+               (name-end (+ (dired-move-to-filename) (length name))))
+      (put-text-property (point) name-end 'display ".../")
+      (put-text-property (point) name-end 'help-echo file))
+    (forward-line))
   `(jit-lock-bounds ,beg . ,end))
 
 (defun filechooser-dired-new-frame (&optional dir filters)
