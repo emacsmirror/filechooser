@@ -290,8 +290,9 @@ editing session. FILTERS are in the format of `filechooser-filters'."
                        (dired-noselect (list (car filechooser--selection))))
                (display-buffer selection-buffer '(display-buffer-in-side-window
                                                   (side . left) (window-width . 0.3)))
-               (select-window (get-buffer-window (cdr filechooser--selection)))
-               (redisplay)
+               (when-let ((win (get-buffer-window (cdr filechooser--selection))))
+                 (select-window win)
+                 (redisplay))
                (with-current-buffer (cdr filechooser--selection)
                  (setq mode-line-format " Selected files")
                  (dired-hide-details-mode)
