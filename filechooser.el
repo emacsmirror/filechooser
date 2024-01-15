@@ -67,6 +67,21 @@ NAME should describe the filter which can either be a regexp
 or else a predicate function which takes a filename as argument.
 If BOOL is non-nil filter is active by default otherwise it is inactive.")
 
+(defvar filechooser-choose-file #'filechooser-read-file-name
+  "Function used to choose a single file.
+It should have the same calling calling convention as
+`filechooser--read-file-name-1' which see for expected behavior.")
+
+(defvar filechooser-choose-files #'filechooser-with-dired
+  "Function used to choose multiple files.
+It should have the same calling as `filechooser-with-dired' which see for
+expected behavior.")
+
+(defvar filechooser-choose-directory #'filechooser-save-files
+  "Function used to choose a directory for saving files in.
+It should have the same calling convention as
+`filechooser-save-files' which see for expected behavior.")
+
 (defvar filechooser--filters nil)
 (defvar filechooser--selection (list (make-temp-file "filechooser-selection-" t)))
 
@@ -223,7 +238,7 @@ MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
         result
       (filechooser--handle-exisiting-file result dir filters))))
 
-(defun filechooser-read-file-name (prompt &optional mustmatch filters dir default)
+(defun filechooser-read-file-name (prompt &optional dir filters mustmatch default)
   "Read a file name.
 If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
 is used, othewise the selected frame is used.
@@ -361,7 +376,7 @@ editing session. FILTERS are in the format of `filechooser-filters'."
     (forward-line))
   `(jit-lock-bounds ,beg . ,end))
 
-(defun filechooser-with-dired (&optional dir filters)
+(defun filechooser-with-dired (_prompt &optional dir filters)
   "Select some files using Dired.
 If `filechooser-use-popup-frame' is non-nil a new frame is used for selection,
 otherwise selected frame is used. DIR is the directory for initial Dired
@@ -375,31 +390,33 @@ buffer. FILTERS are used to restrict selection to a subset of files."
   (let ((filters (filechooser--make-filters opts)))
     (filechooser--return-value
      (if (caar (alist-get "multiple" opts nil nil #'equal))
-         (filechooser-with-dired nil filters)
-       (filechooser-read-file-name (format "%s: " title) t filters)))))
+         (funcall filechooser-choose-files (format "%s: " title) nil filters)
+       (funcall filechooser-choose-file (format "%s: " title) nil filters t)))))
 
 (defun filechooser-handle-save-file (_handle _app_id _parent title &rest opts)
   "Handle  SaveFile request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (filechooser--return-value
-   (filechooser-read-file-name
-    (format "%s: " title) nil
-    (filechooser--make-filters opts)
+   (funcall
+    filechooser-choose-file
+    (format "%s: " title)
     (file-name-as-directory
      (dbus-byte-array-to-string
       (butlast (caar (alist-get "current_folder" opts nil nil #'equal)))))
+    (filechooser--make-filters opts) nil
     (caar (alist-get "current_name" opts nil nil #'equal)))))
 
 (defun filechooser-handle-save-files (_handle _app_id _parent title &rest opts)
   "Handle SaveFiles request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (filechooser--return-value
-   (filechooser-save-files
+   (funcall
+    filechooser-choose-directory
     (format "%s: " title)
     (dbus-byte-array-to-string
      (butlast (caar (alist-get "current_folder" opts nil nil #'equal)))
      (mapcar (lambda (file) (dbus-byte-array-to-string (butlast file)))
-      (caar (alist-get "files" opts nil nil #'equal)))))))
+             (caar (alist-get "files" opts nil nil #'equal)))))))
 
 ;;; Starting Service
 ;;;###autoload
