@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: convenience files tools unix
 ;; Homepage: https://codeberg.org/rahguzar/filechooser
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.1") (compat "29.1"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -24,7 +24,6 @@
 (require 'dbus)
 (require 'xdg)
 (require 'dired)
-(require 'bind-key)
 
 (defgroup filechooser nil
   "The group for custom variables and modes related to file chooser."
@@ -55,6 +54,10 @@ prompt. In both cases if a the answer is negative, the file selection is started
 again. If it is the symbol `uniquify', the FILENAME is made unique by appedning
 -N to it where N is a positive number. If it is a function, it is called with
 FILENAME and the return value is used as the filename.")
+
+(defvar filechooser-use-popup-frame t
+  "Whether to popup a new frame for choosing files.
+If it is nil the selected frame is used instead.")
 
 (defvar filechooser-filters `(("Directories" filechooser-file-directory-p . t)
                               ("Elisp files" ,(rx ".el" eos))
@@ -134,20 +137,23 @@ The CURRENT filter is active."
           (throw 'match t))))))
 
 ;;; Utility definitions
-(defmacro filechooser--with-new-frame (minibuffer &rest body)
-  "Excute BODY in a new frame.
+(defmacro filechooser--maybe-with-new-frame (minibuffer &rest body)
+  "Excute BODY in a new frame if `filechooser-use-popup-frame' is non-nil.
 MINIBUFFER is the value of minibuffer frame paramter."
   (declare (indent 1))
   (let ((framevar (make-symbol "frame")))
-    `(let ((,framevar (make-frame '((name . ,(if (eq minibuffer 'only)
-                                                 "filechooser-miniframe"
-                                               "filechooser-frame"))
-                                    (minibuffer . ,minibuffer)))))
-       (unwind-protect
-           (with-demoted-errors "%S"
-             (with-selected-frame ,framevar
-             ,@body))
-         (delete-frame ,framevar 'force)))))
+    `(if filechooser-use-popup-frame
+         (let ((,framevar (make-frame '((name . ,(if (eq minibuffer 'only)
+                                                     "filechooser-miniframe"
+                                                   "filechooser-frame"))
+                                        (minibuffer . ,minibuffer)))))
+           (unwind-protect
+               (with-demoted-errors "%S"
+                 (with-selected-frame ,framevar
+                   ,@body))
+             (delete-frame ,framevar 'force)))
+       (with-demoted-errors "%S"
+         ,@body))))
 
 (defun filechooser-abort ()
   "Abort the file selection."
@@ -196,7 +202,7 @@ are the filters to use in that case."
            (filechooser--read-file-name "Choose a new file name: "
                                         nil filters dir
                                         (file-relative-name filename dir))))
-        (_ (funcall filechooser-save-existing-files))))
+        (_ (funcall filechooser-save-existing-files filename))))
 
 (defun filechooser--read-file-name (prompt &optional mustmatch filters dir default)
   "Read a filename with PROMPT and predicate made from FILTERS.
@@ -217,19 +223,23 @@ MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
         result
       (filechooser--handle-exisiting-file result dir filters))))
 
-(defun filechooser-read-file-name-new-frame (prompt &optional mustmatch filters dir default)
-  "Read a file name from a new minibuffer only frame.
+(defun filechooser-read-file-name (prompt &optional mustmatch filters dir default)
+  "Read a file name.
+If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
+is used, othewise the selected frame is used.
 PROMPT is the minibuffer prompt. MUSTMATCH and DIR are as in `read-file-name'.
 FILTERS take the same form as elements of `filechooser-filters'. Only those
 files which satisfy one of the active filters from FILTERS or
 `filechooser-filters' are presented for completions."
-  (filechooser--with-new-frame only
+  (filechooser--maybe-with-new-frame only
     (filechooser--read-file-name prompt mustmatch filters dir default)))
 
-(defun filechooser-save-files-new-frame (prompt &optional dir files)
-  "Read a directory name from a new minibuffer only frame and save FILES in it.
-PROMPT and DIR are as in `read-directory-name'."
-  (filechooser--with-new-frame only
+(defun filechooser-save-files (prompt &optional dir files)
+  "Read a directory name to save FILES in it.
+If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
+is used, othewise the selected frame is used. PROMPT and DIR are as in
+`read-directory-name'."
+  (filechooser--maybe-with-new-frame only
     (when-let ((save-dir (read-directory-name prompt dir))
                (names nil))
       (make-directory save-dir t)
@@ -351,26 +361,28 @@ editing session. FILTERS are in the format of `filechooser-filters'."
     (forward-line))
   `(jit-lock-bounds ,beg . ,end))
 
-(defun filechooser-dired-new-frame (&optional dir filters)
-  "Select some files using Dired in a new frame.
-DIR is the directory for initial Dired buffer. FILTERS"
-  (filechooser--with-new-frame t (filechooser-dired dir filters)))
+(defun filechooser-with-dired (&optional dir filters)
+  "Select some files using Dired.
+If `filechooser-use-popup-frame' is non-nil a new frame is used for selection,
+otherwise selected frame is used. DIR is the directory for initial Dired
+buffer. FILTERS are used to restrict selection to a subset of files."
+  (filechooser--maybe-with-new-frame t (filechooser-dired dir filters)))
 
 ;;; Method handlers
 (defun filechooser-handle-open-file (_handle _app_id _parent title &rest opts)
   "Handle OpenFile request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (let ((filters (filechooser--make-filters opts)))
-      (filechooser--return-value
-   (if (caar (alist-get "multiple" opts nil nil #'equal))
-       (filechooser-dired-new-frame nil filters)
-     (filechooser-read-file-name-new-frame (format "%s: " title) t filters)))))
+    (filechooser--return-value
+     (if (caar (alist-get "multiple" opts nil nil #'equal))
+         (filechooser-with-dired nil filters)
+       (filechooser-read-file-name (format "%s: " title) t filters)))))
 
 (defun filechooser-handle-save-file (_handle _app_id _parent title &rest opts)
   "Handle  SaveFile request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (filechooser--return-value
-   (filechooser-read-file-name-new-frame
+   (filechooser-read-file-name
     (format "%s: " title) nil
     (filechooser--make-filters opts)
     (file-name-as-directory
@@ -382,7 +394,7 @@ DIR is the directory for initial Dired buffer. FILTERS"
   "Handle SaveFiles request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (filechooser--return-value
-   (filechooser-save-files-new-frame
+   (filechooser-save-files
     (format "%s: " title)
     (dbus-byte-array-to-string
      (butlast (caar (alist-get "current_folder" opts nil nil #'equal)))
