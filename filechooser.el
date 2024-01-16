@@ -21,6 +21,8 @@
 ;;
 ;;
 ;;; Code:
+(require 'compat)
+(require 'crm)
 (require 'dbus)
 (require 'xdg)
 (require 'dired)
@@ -43,6 +45,7 @@
 (defvar filechooser-mininuffer-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-f") #'filechooser-toggle-filter)
+    (define-key map (kbd "C-l") #'filechooser-insert-crm-separator)
     (define-key map [remap abort-recursive-edit] #'filechooser-abort)
     map))
 
@@ -70,9 +73,9 @@ If BOOL is non-nil filter is active by default otherwise it is inactive.")
 (defvar filechooser-choose-file #'filechooser-read-file-name
   "Function used to choose a single file.
 It should have the same calling calling convention as
-`filechooser--read-file-name-1' which see for expected behavior.")
+`filechooser-read-file-name' which see for expected behavior.")
 
-(defvar filechooser-choose-files #'filechooser-with-dired
+(defvar filechooser-choose-files #'filechooser-read-file-names
   "Function used to choose multiple files.
 It should have the same calling as `filechooser-with-dired' which see for
 expected behavior.")
@@ -81,6 +84,10 @@ expected behavior.")
   "Function used to choose a directory for saving files in.
 It should have the same calling convention as
 `filechooser-save-files' which see for expected behavior.")
+
+(defvar filechooser-crm-separator ""
+  "`crm-separator' for choosing multiple files.
+It should be a literal string and can be inserted using `C-l' from minibuffer.")
 
 (defvar filechooser--filters nil)
 (defvar filechooser--selection (list (make-temp-file "filechooser-selection-" t)))
@@ -95,7 +102,7 @@ It should have the same calling convention as
       "Inactive")))
 
 (defun filechooser-file-directory-p (name)
-  "Return NAME is a directory relative to default or current Dired directory."
+  "Return non-nil if NAME is an existing directory."
     (file-directory-p (if (derived-mode-p 'dired-mode)
                           (expand-file-name name (dired-current-directory))
                         name)))
@@ -187,16 +194,36 @@ MINIBUFFER is the value of minibuffer frame paramter."
        `(:array :signature "{sv}"))))
 
 ;;; Minibuffer based selection
-(defun filechooser--read-file-name-1 (prompt &optional mustmatch filters dir default)
+(defun filechooser-insert-crm-separator ()
+  "Insert the `filechooser-crm-separator'."
+  (interactive)
+  (insert filechooser-crm-separator))
+
+(defun filechooser--multiple-completion-table (str pred action)
+  "Completion table for reading file names.
+See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
+  (if (eq action 'metadata)
+      '(metadata (category . file))
+    (completion-file-name-table str pred action)))
+
+(defun filechooser--read-file-name-1 (prompt &optional mustmatch filters dir default multiple)
   "Read a filename with PROMPT and predicate made from FILTERS.
-MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
+MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename.
+If MULTIPLE is non-nil `completing-read-multiple' is used."
   (catch 'continue
     (minibuffer-with-setup-hook
         (lambda () (use-local-map (make-composed-keymap filechooser-mininuffer-map
-                                                   (current-local-map))))
-      (read-file-name
-       prompt dir nil mustmatch default
-       (when filters (filechooser--filters-predicate filters))))))
+                                                   (current-local-map)))
+          (when dir (setq default-directory dir)))
+      (if multiple
+          (let ((crm-separator filechooser-crm-separator))
+            (completing-read-multiple
+             prompt #'filechooser--multiple-completion-table
+             (filechooser--filters-predicate filters)
+             mustmatch))
+        (read-file-name
+         prompt dir default mustmatch nil
+         (when filters (filechooser--filters-predicate filters)))))))
 
 (defun filechooser--handle-exisiting-file (filename &optional dir filters)
   "Handle an existing FILENAME according to `filechooser-save-existing-files'.
@@ -219,9 +246,10 @@ are the filters to use in that case."
                                         (file-relative-name filename dir))))
         (_ (funcall filechooser-save-existing-files filename))))
 
-(defun filechooser--read-file-name (prompt &optional mustmatch filters dir default)
+(defun filechooser--read-file-name (prompt &optional mustmatch filters dir default multiple)
   "Read a filename with PROMPT and predicate made from FILTERS.
-MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
+MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename.
+If MULTIPLE is non-nil `completing-read-multiple' is used."
   (setq filechooser--filters (cl-delete-duplicates
                               (append filechooser-filters filters)
                               :test #'equal :key #'car))
@@ -233,7 +261,7 @@ MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename."
                     prompt mustmatch
                     (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
                                       filechooser--filters))
-                    dir default)))
+                    dir default multiple)))
     (if (or mustmatch (not (file-exists-p result)))
         result
       (filechooser--handle-exisiting-file result dir filters))))
@@ -248,6 +276,21 @@ files which satisfy one of the active filters from FILTERS or
 `filechooser-filters' are presented for completions."
   (filechooser--maybe-with-new-frame only
     (filechooser--read-file-name prompt mustmatch filters dir default)))
+
+(defun filechooser-read-file-names (prompt &optional dir filters)
+  "Read multiple file names using `completing-read-multiple'.
+`filechooser-crm-separator' is used as `crm-separator' and can be inserted
+using `C-l'.
+If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
+is used, othewise the selected frame is used.
+PROMPT is the minibuffer prompt. DIR is the directory where selection starts.
+FILTERS take the same form as elements of `filechooser-filters'. Only those
+files which satisfy one of the active filters from FILTERS or
+`filechooser-filters' are presented for completions."
+  (setq dir (file-name-as-directory
+             (expand-file-name (or dir default-directory))))
+  (filechooser--maybe-with-new-frame only
+    (filechooser--read-file-name prompt t filters dir nil 'multiple)))
 
 (defun filechooser-save-files (prompt &optional dir files)
   "Read a directory name to save FILES in it.
@@ -394,7 +437,7 @@ buffer. FILTERS are used to restrict selection to a subset of files."
        (funcall filechooser-choose-file (format "%s: " title) nil filters t)))))
 
 (defun filechooser-handle-save-file (_handle _app_id _parent title &rest opts)
-  "Handle  SaveFile request with prompt TITLE and options OPTS."
+  "Handle SaveFile request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
   (filechooser--return-value
    (funcall
