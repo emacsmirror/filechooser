@@ -531,12 +531,16 @@ buffer. FILTERS are used to restrict selection to a subset of files."
   (let ((filters (filechooser--make-filters opts)))
     (filechooser--return-value
      (if (caar (alist-get "multiple" opts nil nil #'equal))
-         (funcall filechooser-choose-files (format "%s: " title) nil filters)
+         (progn
+           (setq filechooser-current-operation filechooser-choose-files)
+           (funcall filechooser-choose-files (format "%s: " title) nil filters))
+       (setq filechooser-current-operation filechooser-choose-file)
        (funcall filechooser-choose-file (format "%s: " title) nil filters t)))))
 
 (defun filechooser-handle-save-file (_handle _app_id _parent title &rest opts)
   "Handle SaveFile request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
+  (setq filechooser-current-operation filechooser-choose-file)
   (filechooser--return-value
    (funcall
     filechooser-choose-file
@@ -550,6 +554,7 @@ buffer. FILTERS are used to restrict selection to a subset of files."
 (defun filechooser-handle-save-files (_handle _app_id _parent title &rest opts)
   "Handle SaveFiles request with prompt TITLE and options OPTS."
   (setq opts (or (plist-get opts :array) (car opts)))
+  (setq filechooser-current-operation filechooser-choose-directory)
   (filechooser--return-value
    (funcall
     filechooser-choose-directory
