@@ -89,8 +89,19 @@ It should have the same calling convention as
   "`crm-separator' for choosing multiple files.
 It should be a literal string and can be inserted using `C-l' from minibuffer.")
 
+(defvar filechooser-multiple-selection-keys '("RET" . "M-TAB")
+  "A cons cell containing two keys.
+The car should be the key that is used to exit minibuffer to do completion i.e.
+the key that binds the equivalent of `exit-minibuffer' for the completion UI of
+choice: usually RET. It will select the current candidate and exit file
+selection. The cdr key will select the current candidate and continue selection.")
+
+(defvar filechooser-current-operation nil
+  "When filechooser is active, this variable is set to the command being used.")
+
 (defvar filechooser--filters nil)
 (defvar filechooser--selection (list (make-temp-file "filechooser-selection-" t)))
+(defvar filechooser--multiple-selection nil)
 
 ;;; Filters
 (defun filechooser--filters-group-fn (cand transform)
@@ -206,6 +217,30 @@ See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
       '(metadata (category . file))
     (completion-file-name-table str pred action)))
 
+(defun filechooser--multiple-group-function (completion transform)
+  "Group function for `filechooser--multiple-loop-table'.
+See Info node `(elisp) Programmed Completion' for COMPLETION and TRANSFORM."
+  (if-let ((display (rassoc completion filechooser--multiple-selection)))
+      (if transform
+          (abbreviate-file-name (car display))
+        "Selected")
+    (if transform completion "Select Multiple")))
+
+(defun filechooser--multiple-loop-table (str pred action)
+  "Completion table used for calling `completing-read' in a loop.
+See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
+  (pcase action
+    ('t (let ((dir (or (file-name-directory str) default-directory)))
+          (cl-callf2 mapcar (lambda (sel) (cons (car sel)
+                                           (file-relative-name (car sel) dir)))
+                     filechooser--multiple-selection)
+          (append (mapcar #'cdr filechooser--multiple-selection)
+                  (completion-file-name-table str pred t))))
+    ('metadata '(metadata
+                 (category . file)
+                 (group-function . filechooser--multiple-group-function)))
+    (_ (completion-file-name-table str pred action))))
+
 (defun filechooser--read-file-name-1 (prompt &optional mustmatch filters dir default multiple)
   "Read a filename with PROMPT and predicate made from FILTERS.
 MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename.
@@ -277,7 +312,70 @@ files which satisfy one of the active filters from FILTERS or
   (filechooser--maybe-with-new-frame only
     (filechooser--read-file-name prompt mustmatch filters dir default)))
 
+(defun filechooser-multiple-continue ()
+  "Select current file and exit multiple file selection."
+  (interactive)
+  (setq this-command 'filechooser-multiple-continue)
+  (call-interactively
+   (key-binding (kbd (car filechooser-multiple-selection-keys)))))
+
+(defun filechooser--multiple-read-file-name (prompt &optional dir map)
+  "Read a filename with PROMPT and starting from DIR.
+MAP contains additional key bindigs."
+  (let ((result t)
+        filters)
+    (while (eq t result)
+      (when (minibufferp nil t)
+        (abort-minibuffers))
+      (setq result
+            (catch 'continue
+              (minibuffer-with-setup-hook
+                  (lambda () (use-local-map
+                         (make-composed-keymap map (current-local-map))))
+                (setq filters (delq nil (mapcar
+                                         (lambda (flt) (if (cddr flt) (cadr flt)))
+                                         filechooser--filters)))
+                (completing-read prompt #'filechooser--multiple-loop-table
+                                 (filechooser--filters-predicate filters) t
+                                 (abbreviate-file-name dir)
+                                 'file-name-history)))))
+    result))
+
 (defun filechooser-read-file-names (prompt &optional dir filters)
+  "Read multiple file names using `completing-read-multiple'.
+If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
+is used, othewise the selected frame is used.
+PROMPT is the minibuffer prompt. DIR is the directory where selection starts.
+FILTERS take the same form as elements of `filechooser-filters'. Only those
+files which satisfy one of the active filters from FILTERS or
+`filechooser-filters' are presented for completions."
+  (setq filechooser--filters
+        (cl-delete-duplicates
+         (append filechooser-filters filters)
+         :test #'equal :key #'car))
+  (setq dir (file-name-as-directory
+             (expand-file-name (or dir default-directory))))
+  (let ((map (make-sparse-keymap))
+        (continue t)
+        selected filechooser--multiple-selection)
+    (define-key map (kbd (cdr filechooser-multiple-selection-keys))
+                #'filechooser-multiple-continue)
+    (setq map (make-composed-keymap map filechooser-mininuffer-map))
+    (filechooser--maybe-with-new-frame only
+      (while continue
+        (setq selected (expand-file-name
+                        (filechooser--multiple-read-file-name prompt dir map)))
+        (cl-callf
+            (lambda (x)
+              (unless x
+                (setq dir (expand-file-name (file-name-directory selected))))
+              (not x))
+            (alist-get selected filechooser--multiple-selection
+                       nil t #'equal))
+        (setq continue (eq this-command 'filechooser-multiple-continue)))
+      (nreverse (mapcar #'car filechooser--multiple-selection)))))
+
+(defun filechooser-read-file-names-crm (prompt &optional dir filters)
   "Read multiple file names using `completing-read-multiple'.
 `filechooser-crm-separator' is used as `crm-separator' and can be inserted
 using `C-l'.
