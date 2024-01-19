@@ -49,6 +49,12 @@
     (define-key map [remap abort-recursive-edit] #'filechooser-abort)
     map))
 
+(defvar filechooser-multiple-selection-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "M-TAB") #'filechooser-multiple-continue)
+    (define-key map (kbd "M-RET") #'filechooser-multiple-finalize-current-selection)
+    (make-composed-keymap map filechooser-mininuffer-map)))
+
 (defvar filechooser-save-existing-files 'uniquify
   "Determines behavior when attempting to save an existing file FILENAME.
 If it is symbol `yes-or-no-p', `yes-or-no-p' is used to confirm if the file
@@ -89,12 +95,10 @@ It should have the same calling convention as
   "`crm-separator' for choosing multiple files.
 It should be a literal string and can be inserted using `C-l' from minibuffer.")
 
-(defvar filechooser-multiple-selection-keys '("RET" . "M-TAB")
-  "A cons cell containing two keys.
-The car should be the key that is used to exit minibuffer to do completion i.e.
-the key that binds the equivalent of `exit-minibuffer' for the completion UI of
-choice: usually RET. It will select the current candidate and exit file
-selection. The cdr key will select the current candidate and continue selection.")
+(defvar filechooser-multiple-selection-key "RET"
+  "The key that is used to exit minibuffer to do completion.
+I.e. the key that binds the equivalent of `exit-minibuffer' for the completion
+UI of choice: usually RET.")
 
 (defvar filechooser-current-operation nil
   "When filechooser is active, this variable is set to the command being used.")
@@ -317,9 +321,14 @@ files which satisfy one of the active filters from FILTERS or
   (interactive)
   (setq this-command 'filechooser-multiple-continue)
   (call-interactively
-   (key-binding (kbd (car filechooser-multiple-selection-keys)))))
+   (key-binding (kbd filechooser-multiple-selection-key))))
 
-(defun filechooser--multiple-read-file-name (prompt &optional dir map)
+(defun filechooser-multiple-finalize-current-selection ()
+  "Exit the file selection with currently selected candidates."
+  (interactive)
+  (throw 'done nil))
+
+(defun filechooser--multiple-read-file-name (prompt &optional dir)
   "Read a filename with PROMPT and starting from DIR.
 MAP contains additional key bindigs."
   (let ((result t)
@@ -327,14 +336,15 @@ MAP contains additional key bindigs."
     (while (eq t result)
       (when (minibufferp nil t)
         (abort-minibuffers))
+      (setq filters (delq nil (mapcar
+                               (lambda (flt) (if (cddr flt) (cadr flt)))
+                               filechooser--filters)))
       (setq result
             (catch 'continue
               (minibuffer-with-setup-hook
-                  (lambda () (use-local-map
-                         (make-composed-keymap map (current-local-map))))
-                (setq filters (delq nil (mapcar
-                                         (lambda (flt) (if (cddr flt) (cadr flt)))
-                                         filechooser--filters)))
+                  (lambda () (use-local-map (make-composed-keymap
+                                        filechooser-multiple-selection-map
+                                        (current-local-map))))
                 (completing-read prompt #'filechooser--multiple-loop-table
                                  (filechooser--filters-predicate filters) t
                                  (abbreviate-file-name dir)
@@ -355,24 +365,21 @@ files which satisfy one of the active filters from FILTERS or
          :test #'equal :key #'car))
   (setq dir (file-name-as-directory
              (expand-file-name (or dir default-directory))))
-  (let ((map (make-sparse-keymap))
-        (continue t)
+  (let ((continue t)
         selected filechooser--multiple-selection)
-    (define-key map (kbd (cdr filechooser-multiple-selection-keys))
-                #'filechooser-multiple-continue)
-    (setq map (make-composed-keymap map filechooser-mininuffer-map))
     (filechooser--maybe-with-new-frame only
-      (while continue
-        (setq selected (expand-file-name
-                        (filechooser--multiple-read-file-name prompt dir map)))
-        (cl-callf
-            (lambda (x)
-              (unless x
-                (setq dir (expand-file-name (file-name-directory selected))))
-              (not x))
-            (alist-get selected filechooser--multiple-selection
-                       nil t #'equal))
-        (setq continue (eq this-command 'filechooser-multiple-continue)))
+      (catch 'done
+        (while continue
+          (setq selected (expand-file-name
+                          (filechooser--multiple-read-file-name prompt dir)))
+          (cl-callf
+              (lambda (x)
+                (unless x
+                  (setq dir (expand-file-name (file-name-directory selected))))
+                (not x))
+              (alist-get selected filechooser--multiple-selection
+                         nil t #'equal))
+          (setq continue (eq this-command 'filechooser-multiple-continue))))
       (nreverse (mapcar #'car filechooser--multiple-selection)))))
 
 (defun filechooser-read-file-names-crm (prompt &optional dir filters)
