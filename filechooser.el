@@ -55,50 +55,71 @@
     (define-key map (kbd "M-RET") #'filechooser-multiple-finalize-current-selection)
     (make-composed-keymap map filechooser-mininuffer-map)))
 
-(defvar filechooser-save-existing-files 'uniquify
+(defgroup filechooser nil
+  "An xdg-desktop-portal filechooser."
+  :link '(url-link :tag "Homepage" "https://codeberg.org/rahguzar/filechooser")
+  :group 'files)
+
+(defcustom filechooser-save-existing-files 'uniquify
   "Determines behavior when attempting to save an existing file FILENAME.
 If it is symbol `yes-or-no-p', `yes-or-no-p' is used to confirm if the file
 should be overwritten. If it is the symbol `y-or-n-p', `y-or-n-p' is used to
 prompt. In both cases if a the answer is negative, the file selection is started
 again. If it is the symbol `uniquify', the FILENAME is made unique by appedning
 -N to it where N is a positive number. If it is a function, it is called with
-FILENAME and the return value is used as the filename.")
+FILENAME and the return value is used as the filename."
+  :type '(choice
+          (const :tag "Uniquify" uniquify)
+          (const :tag "Prompt Yes/No" yes-or-no-p)
+          (const :tag "Prompt Y/N" y-or-n-p)
+          (function :tag "Custom Function")))
 
-(defvar filechooser-use-popup-frame t
+(defcustom filechooser-use-popup-frame t
   "Whether to popup a new frame for choosing files.
-If it is nil the selected frame is used instead.")
+If it is nil the selected frame is used instead."
+  :type 'boolean)
 
-(defvar filechooser-filters `(("Directories" filechooser-file-directory-p . t)
+(defcustom filechooser-filters `(("Directories" filechooser-file-directory-p . t)
                               ("Elisp files" ,(rx ".el" eos))
                               ("Not dot files" ,(rx bos (not ?.))))
   "An alist of (NAME FILTER . BOOL).
 NAME should describe the filter which can either be a regexp
 or else a predicate function which takes a filename as argument.
-If BOOL is non-nil filter is active by default otherwise it is inactive.")
+If BOOL is non-nil filter is active by default otherwise it is inactive."
+  :type '(alist :key-type (string :tag "Name")
+                :value-type
+                (cons :tag "Value:"
+                  (choice :tag "Filter" regexp function)
+                  (boolean :tag "Default"))))
 
-(defvar filechooser-choose-file #'filechooser-read-file-name
+(defcustom filechooser-choose-file #'filechooser-read-file-name
   "Function used to choose a single file.
 It should have the same calling calling convention as
-`filechooser-read-file-name' which see for expected behavior.")
+`filechooser-read-file-name' which see for expected behavior."
+  :type 'function)
 
-(defvar filechooser-choose-files #'filechooser-read-file-names
+(defcustom filechooser-choose-files #'filechooser-read-file-names
   "Function used to choose multiple files.
 It should have the same calling as `filechooser-with-dired' which see for
-expected behavior.")
+expected behavior."
+  :type 'function)
 
-(defvar filechooser-choose-directory #'filechooser-save-files
+(defcustom filechooser-choose-directory #'filechooser-save-files
   "Function used to choose a directory for saving files in.
 It should have the same calling convention as
-`filechooser-save-files' which see for expected behavior.")
+`filechooser-save-files' which see for expected behavior."
+  :type 'function)
 
-(defvar filechooser-crm-separator ""
+(defcustom filechooser-crm-separator ""
   "`crm-separator' for choosing multiple files.
-It should be a literal string and can be inserted using `C-l' from minibuffer.")
+It should be a literal string and can be inserted using `C-l' from minibuffer."
+  :type 'string)
 
-(defvar filechooser-multiple-selection-key "RET"
+(defcustom filechooser-multiple-selection-key "RET"
   "The key that is used to exit minibuffer to do completion.
 I.e. the key that binds the equivalent of `exit-minibuffer' for the completion
-UI of choice: usually RET.")
+UI of choice: usually RET."
+  :type 'key)
 
 (defvar filechooser-current-operation nil
   "When filechooser is active, this variable is set to the command being used.")
