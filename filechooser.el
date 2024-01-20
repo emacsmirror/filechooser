@@ -133,15 +133,17 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
                  action filechooser--filters str predicate))))
     (when-let ((names
                 (ensure-list
-                 (funcall (if arg #'completing-read-multiple #'completing-read)
-                          (if arg "Toggle filters: " "Toggle a filter: ")
-                          #'table nil t))))
+                 (let ((minibuffer-completing-file-name nil))
+                   (funcall (if arg #'completing-read-multiple #'completing-read)
+                            (if arg "Toggle filters: " "Toggle a filter: ")
+                            #'table nil t)))))
       (dolist (name names)
         (cl-callf not (cdr (alist-get name filechooser--filters nil nil #'equal))))
       (if (minibufferp)
           (throw 'continue t)
-        (dolist (buf (match-buffers `(derived-mode . dired-mode)
-                                     (frame-parameter (selected-frame) 'buffer-list)))
+        (dolist (buf (match-buffers
+                      `(derived-mode . dired-mode)
+                      (frame-parameter (selected-frame) 'buffer-list)))
           (with-current-buffer buf (jit-lock-refontify)))))))
 
 (defun filechooser--make-filters (opts)
@@ -179,7 +181,8 @@ The CURRENT filter is active."
 MINIBUFFER is the value of minibuffer frame paramter."
   (declare (indent 1))
   (let ((framevar (make-symbol "frame")))
-    `(if filechooser-use-popup-frame
+    `(let ((minibuffer-completing-file-name ,(eq minibuffer 'only)))
+      (if filechooser-use-popup-frame
          (let ((,framevar (make-frame '((name . ,(if (eq minibuffer 'only)
                                                      "filechooser-miniframe"
                                                    "filechooser-frame"))
@@ -190,7 +193,7 @@ MINIBUFFER is the value of minibuffer frame paramter."
                    ,@body))
              (delete-frame ,framevar 'force)))
        (with-demoted-errors "%S"
-         ,@body))))
+         ,@body)))))
 
 (defun filechooser-abort ()
   "Abort the file selection."
