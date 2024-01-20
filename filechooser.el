@@ -147,8 +147,7 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
           (with-current-buffer buf (jit-lock-refontify)))))))
 
 (defun filechooser--make-filters (opts)
-  "Convert globs filters in OPTS to regexps.
-The CURRENT filter is active."
+  "Convert globs filters in OPTS to regexps."
   (let ((filters (caar (alist-get "filters" opts nil nil #'equal)))
         (current (caar (alist-get "current_filter" opts nil nil #'equal)))
         (regex-filters)
