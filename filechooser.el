@@ -22,7 +22,6 @@
 ;;
 ;;; Code:
 (require 'compat)
-(require 'crm)
 (require 'dbus)
 (require 'xdg)
 (require 'dired)
@@ -32,7 +31,7 @@
   :group 'find-file)
 
 ;;; Variables
-
+;;;; Keymaps
 (defvar filechooser-dired-overriding-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'exit-recursive-edit)
@@ -52,8 +51,10 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-TAB") #'filechooser-multiple-continue)
     (define-key map (kbd "M-RET") #'filechooser-multiple-finalize-current-selection)
+    (define-key map (kbd "M-a") #'filechooser-multiple-select-all)
     (make-composed-keymap map filechooser-mininuffer-map)))
 
+;;;; Custom variables
 (defgroup filechooser nil
   "An xdg-desktop-portal filechooser."
   :link '(url-link :tag "Homepage" "https://codeberg.org/rahguzar/filechooser")
@@ -115,9 +116,11 @@ I.e. the key that binds the equivalent of `exit-minibuffer' for the completion
 UI of choice: usually RET."
   :type 'key)
 
+;;;; Others
 (defvar filechooser-current-operation nil
   "When filechooser is active, this variable is set to the command being used.")
 
+;;;; Internal Variables
 (defvar filechooser--filters nil)
 (defvar filechooser--selection (list (make-temp-file "filechooser-selection-" t)))
 (defvar filechooser--multiple-selection nil)
@@ -327,6 +330,23 @@ files which satisfy one of the active filters from FILTERS or
   (interactive)
   (throw 'done nil))
 
+(defun filechooser-multiple-select-all ()
+  "Select all of current completion candidates."
+  (interactive)
+  (setq this-command 'filechooser-multiple-continue)
+  (let* ((str (minibuffer-contents))
+         (dir (file-name-directory str))
+         (cands (completion-all-completions
+                 str minibuffer-completion-table nil (length str))))
+    (when (cdr (last cands))
+      (setf (cdr (last cands)) nil))
+    ;; Handle `completion-ignored-extensions'.
+    (cl-callf completion-pcm--filename-try-filter cands)
+    (setq filechooser--multiple-selection
+          (delete-dups
+           (mapcar (lambda (cand) (cons (expand-file-name cand dir) t)) cands)))
+    (throw 'done dir)))
+
 (defun filechooser--multiple-read-file-name (prompt &optional dir)
   "Read a filename with PROMPT and starting from DIR.
 MAP contains additional key bindigs."
@@ -364,21 +384,18 @@ files which satisfy one of the active filters from FILTERS or
          :test #'equal :key #'car))
   (setq dir (file-name-as-directory
              (expand-file-name (or dir default-directory))))
-  (let ((continue t)
-        selected filechooser--multiple-selection)
+  (let (selected filechooser--multiple-selection)
     (filechooser--maybe-with-new-frame only
-      (catch 'done
-        (while continue
-          (setq selected (expand-file-name
-                          (filechooser--multiple-read-file-name prompt dir)))
-          (cl-callf
-              (lambda (x)
-                (unless x
-                  (setq dir (expand-file-name (file-name-directory selected))))
-                (not x))
-              (alist-get selected filechooser--multiple-selection
-                         nil t #'equal))
-          (setq continue (eq this-command 'filechooser-multiple-continue))))
+      (while (setq dir
+                   (catch 'done
+                     (setq selected (expand-file-name
+                                     (filechooser--multiple-read-file-name
+                                      prompt dir)))
+                     (cl-callf not
+                         (alist-get selected filechooser--multiple-selection
+                                    nil t #'equal))
+                     (when (eq this-command 'filechooser-multiple-continue)
+                       (expand-file-name (file-name-directory selected))))))
       (nreverse (mapcar #'car filechooser--multiple-selection)))))
 
 (defun filechooser-save-files (prompt &optional dir files)
