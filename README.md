@@ -1,6 +1,6 @@
 # filechooser.el: an Emacs based xdg-desktop-portal filechooser. 
 
-filechooser is an Emacs package that enables the use of Emacs to select files in applications like Firefox by providing an `xdg-desktop-portal` backend implementing the [filechooser](https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.impl.portal.FileChooser) interface. It uses minibuffer to select a single file, so the experience is familiar one for commands like `find-file`. To select multiple files Dired is used.
+filechooser is an Emacs package that enables the use of Emacs to select files in applications like Firefox by providing an `xdg-desktop-portal` backend implementing the [filechooser](https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.impl.portal.FileChooser) interface. It uses minibuffer to select a single file, so the experience is familiar one for commands like `find-file`. By default selecting multiple files uses a bespoke command which loops and completes one filename in minibuffer at a time. An alternative dired based selection is also available.
 
 ## Limitations
 At this point `filechooser` has some serious limitations:
@@ -47,7 +47,7 @@ Start an application that uses `xdg-desktop-portal`. An example which is my main
 
 The only new feature is that you can use different filters to determine which files are presented for completion. Some of these filters are defined by the request, but you can also define your own in `filechooser-filters`. To toggle a filter use `C-f`, this will present all filters grouped according to whether they are active or inactive. Select one to toggle it. Only those files which pass through an active filter are presented for completion.
 
-If you are selecting multiple files `M-TAB` toggles selection of the current file without exiting the file selection dialogue. `RET` exits while toggling the selection of current file. If you want to exit with currently selected files without toggling the currently highlighted candidate use `M-RET`.
+If you are selecting multiple files `M-TAB` toggles selection of the current file without exiting the file selection dialogue. `RET` exits while toggling the selection of current file. If you want to exit with currently selected files without toggling the currently highlighted candidate use `M-RET`. `M-a` selects all of current candidates.
 
 ## Customization
 ### Popup frames
