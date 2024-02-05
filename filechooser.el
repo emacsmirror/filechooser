@@ -1,17 +1,16 @@
 ;;; filechooser.el --- An xdg-desktop-portal filechooser -*- lexical-binding: t; -*-
-;;
-;; Copyright (C) 2023 azeem
-;;
+
+;; Copyright (C) 2024 Free Software Foundation, Inc.
+
 ;; Author: rahguzar <rahguzar@zohomail.eu>
 ;; Maintainer: rahguzar <rahguzar@zohomail.eu>
 ;; Created: May 20, 2023
-;; Modified: May 20, 2023
 ;; Version: 0.0.1
 ;; Keywords: convenience files tools unix
 ;; Homepage: https://codeberg.org/rahguzar/filechooser
 ;; Package-Requires: ((emacs "28.1") (compat "29.1"))
 ;;
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 ;;
 ;;; Commentary:
 ;; An implementation of xdg-desktop-portal filechooser in Emacs. This allows
