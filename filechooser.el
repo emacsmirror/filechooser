@@ -118,7 +118,7 @@ UI of choice: usually RET."
 
 ;;;; Internal Variables
 (defvar filechooser--filters nil)
-(defvar filechooser--selection (list (make-temp-file "filechooser-selection-" t)))
+(defvar filechooser--selection nil)
 (defvar filechooser--multiple-selection nil)
 
 ;;; Filters
@@ -449,6 +449,8 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
   "Select some files using Dired.
 Running this command pops a Dired for directory DIR, and enters a recursive
 editing session.  FILTERS are in the format of `filechooser-filters'."
+  (unless (file-directory-p (car filechooser--selection))
+    (setq filechooser--selection (list (make-temp-file "filechooser-selection-" t))))
   (let ((overriding-map `((t . ,filechooser-dired-overriding-map)))
         (apply-filters (lambda (_)
                          (when (and (derived-mode-p 'dired-mode)
