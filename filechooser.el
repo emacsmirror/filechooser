@@ -57,12 +57,13 @@
 
 (defcustom filechooser-save-existing-files 'uniquify
   "Determines behavior when attempting to save an existing file FILENAME.
-If it is symbol `yes-or-no-p', `yes-or-no-p' is used to confirm if the file
-should be overwritten. If it is the symbol `y-or-n-p', `y-or-n-p' is used to
-prompt. In both cases if a the answer is negative, the file selection is started
-again. If it is the symbol `uniquify', the FILENAME is made unique by appedning
--N to it where N is a positive number. If it is a function, it is called with
-FILENAME and the return value is used as the filename."
+If it is symbol `yes-or-no-p', `yes-or-no-p' is used to confirm if the
+file should be overwritten.  If it is the symbol `y-or-n-p', `y-or-n-p'
+is used to prompt.  In both cases if a the answer is negative, the file
+selection is started again.  If it is the symbol `uniquify', the
+FILENAME is made unique by appedning -N to it where N is a positive
+number.  If it is a function, it is called with FILENAME and the return
+value is used as the filename."
   :type '(choice
           (const :tag "Uniquify" uniquify)
           (const :tag "Prompt Yes/No" yes-or-no-p)
@@ -84,8 +85,8 @@ If BOOL is non-nil filter is active by default otherwise it is inactive."
   :type '(alist :key-type (string :tag "Name")
                 :value-type
                 (cons :tag "Value:"
-                  (choice :tag "Filter" regexp function)
-                  (boolean :tag "Default"))))
+                      (choice :tag "Filter" regexp function)
+                      (boolean :tag "Default"))))
 
 (defcustom filechooser-choose-file #'filechooser-read-file-name
   "Function used to choose a single file.
@@ -109,7 +110,7 @@ It should have the same calling convention as
   "The key that is used to exit minibuffer to do completion.
 I.e. the key that binds the equivalent of `exit-minibuffer' for the completion
 UI of choice: usually RET."
-  :type 'key)
+  :type (if (> emacs-major-version 27) 'key 'key-sequence))
 
 ;;;; Others
 (defvar filechooser-current-operation nil
@@ -122,7 +123,8 @@ UI of choice: usually RET."
 
 ;;; Filters
 (defun filechooser--filters-group-fn (cand transform)
-  "Group function for selecting filters. CAND TRANSFORM."
+  "Group function for selecting filters.
+See Info node `(elisp) Programmed Completion' for CAND and TRANSFORM."
   (if transform
       cand
     (if (cdr (alist-get cand filechooser--filters nil nil #'equal))
@@ -131,9 +133,9 @@ UI of choice: usually RET."
 
 (defun filechooser-file-directory-p (name)
   "Return non-nil if NAME is an existing directory."
-    (file-directory-p (if (derived-mode-p 'dired-mode)
-                          (expand-file-name name (dired-current-directory))
-                        name)))
+  (file-directory-p (if (derived-mode-p 'dired-mode)
+                        (expand-file-name name (dired-current-directory))
+                      name)))
 
 (defun filechooser-toggle-filter (arg)
   "Toggle a filter.
@@ -252,7 +254,7 @@ See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
 
 (defun filechooser--read-file-name-1 (prompt &optional mustmatch filters dir default)
   "Read a filename with PROMPT and predicate made from FILTERS.
-MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename.
+MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
 If MULTIPLE is non-nil `completing-read-multiple' is used."
   (catch 'continue
     (minibuffer-with-setup-hook
@@ -268,25 +270,25 @@ If MULTIPLE is non-nil `completing-read-multiple' is used."
 DIR is the directory to use if a new file name needs to be choosen and FILTERS
 are the filters to use in that case."
   (pcase filechooser-save-existing-files
-        ('uniquify
-         (let ((n 1)
-               (name (file-name-sans-extension filename))
-               (ext (file-name-extension filename t)))
-           (while (file-exists-p (format "%s-%s%s" name n ext))
-             (cl-incf n))
-           (format "%s-%s%s" name n ext)))
-        ((or 'yes-or-no-p 'y-or-n-p)
-         (if (funcall filechooser-save-existing-files
-                      (format "File %s exists. Overwrite?" filename))
-             filename
-           (filechooser--read-file-name "Choose a new file name: "
-                                        nil filters dir
-                                        (file-relative-name filename dir))))
-        (_ (funcall filechooser-save-existing-files filename))))
+    ('uniquify
+     (let ((n 1)
+           (name (file-name-sans-extension filename))
+           (ext (file-name-extension filename t)))
+       (while (file-exists-p (format "%s-%s%s" name n ext))
+         (cl-incf n))
+       (format "%s-%s%s" name n ext)))
+    ((or 'yes-or-no-p 'y-or-n-p)
+     (if (funcall filechooser-save-existing-files
+                  (format "File %s exists. Overwrite?" filename))
+         filename
+       (filechooser--read-file-name "Choose a new file name: "
+                                    nil filters dir
+                                    (file-relative-name filename dir))))
+    (_ (funcall filechooser-save-existing-files filename))))
 
 (defun filechooser--read-file-name (prompt &optional mustmatch filters dir default)
   "Read a filename with PROMPT and predicate made from FILTERS.
-MUSTMATCH and DIR are as in `read-file-name'. DEFAULT is the default filename.
+MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
 If MULTIPLE is non-nil `completing-read-multiple' is used."
   (setq filechooser--filters (cl-delete-duplicates
                               (append filechooser-filters filters)
@@ -308,7 +310,7 @@ If MULTIPLE is non-nil `completing-read-multiple' is used."
   "Read a file name.
 If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
 is used, othewise the selected frame is used.
-PROMPT is the minibuffer prompt. MUSTMATCH and DIR are as in `read-file-name'.
+PROMPT is the minibuffer prompt.  MUSTMATCH and DIR are as in `read-file-name'.
 FILTERS take the same form as elements of `filechooser-filters'. Only those
 files which satisfy one of the active filters from FILTERS or
 `filechooser-filters' are presented for completions."
@@ -398,7 +400,7 @@ files which satisfy one of the active filters from FILTERS or
 (defun filechooser-save-files (prompt &optional dir files)
   "Read a directory name to save FILES in it.
 If `filechooser-use-popup-frame' is non-nil a new minibuffer only popup frame
-is used, othewise the selected frame is used. PROMPT and DIR are as in
+is used, othewise the selected frame is used.  PROMPT and DIR are as in
 `read-directory-name'."
   (filechooser--maybe-with-new-frame only
     (when-let ((save-dir (read-directory-name prompt dir))
@@ -446,14 +448,18 @@ is used, othewise the selected frame is used. PROMPT and DIR are as in
 (defun filechooser-dired (&optional dir filters)
   "Select some files using Dired.
 Running this command pops a Dired for directory DIR, and enters a recursive
-editing session. FILTERS are in the format of `filechooser-filters'."
+editing session.  FILTERS are in the format of `filechooser-filters'."
   (let ((overriding-map `((t . ,filechooser-dired-overriding-map)))
-        (apply-filters (lambda (_) (when (and (derived-mode-p 'dired-mode)
-                                         (not (eq (current-buffer) (cdr filechooser--selection)))
-                                         (not (memq 'filechooser--dired-jit-filter jit-lock-functions)))
-                                (add-hook 'jit-lock-functions #'filechooser--dired-jit-filter 95 t)
-                                (jit-lock-mode t)
-                                (add-to-invisibility-spec 'filechooser-filter))))
+        (apply-filters (lambda (_)
+                         (when (and (derived-mode-p 'dired-mode)
+                                    (not (eq (current-buffer)
+                                             (cdr filechooser--selection)))
+                                    (not (memq 'filechooser--dired-jit-filter
+                                               jit-lock-functions)))
+                           (add-hook 'jit-lock-functions
+                                     #'filechooser--dired-jit-filter 95 t)
+                           (jit-lock-mode t)
+                           (add-to-invisibility-spec 'filechooser-filter))))
         (selection-buffer (progn (setcdr filechooser--selection nil)
                                  (dired-noselect filechooser--selection))))
     (unwind-protect
@@ -526,7 +532,7 @@ editing session. FILTERS are in the format of `filechooser-filters'."
   "Select some files using Dired.
 If `filechooser-use-popup-frame' is non-nil a new frame is used for selection,
 otherwise selected frame is used. DIR is the directory for initial Dired
-buffer. FILTERS are used to restrict selection to a subset of files."
+buffer.  FILTERS are used to restrict selection to a subset of files."
   (filechooser--maybe-with-new-frame t (filechooser-dired dir filters)))
 
 ;;; Method handlers
