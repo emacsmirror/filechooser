@@ -25,10 +25,6 @@
 (require 'xdg)
 (require 'dired)
 
-(defgroup filechooser nil
-  "The group for custom variables and modes related to file chooser."
-  :group 'find-file)
-
 ;;; Variables
 ;;;; Keymaps
 (defvar filechooser-dired-overriding-map
