@@ -181,9 +181,12 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
   (lambda (name)
     (catch 'match
       (dolist (filter filters)
-        (when (if (stringp filter)
-                  (string-match filter name)
+        (when (cond
+               ((stringp filter)
+                (string-match filter name))
+               ((functionp filter)
                 (funcall filter name))
+               ((error "Unknown filter %S" filter)))
           (throw 'match t))))))
 
 ;;; Utility definitions
