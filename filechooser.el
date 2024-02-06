@@ -5,7 +5,7 @@
 ;; Author: rahguzar <rahguzar@zohomail.eu>
 ;; Maintainer: rahguzar <rahguzar@zohomail.eu>
 ;; Created: May 20, 2023
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Keywords: convenience files tools unix
 ;; Homepage: https://codeberg.org/rahguzar/filechooser
 ;; Package-Requires: ((emacs "28.1") (compat "29.1"))
@@ -167,7 +167,7 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
         (current (caar (alist-get "current_filter" opts nil nil #'equal)))
         (regex-filters)
         (glob-to-regexp (lambda (cell) (if (eq  0 (car cell))
-                                      `(regexp ,(wildcard-to-regexp (nth 1 cell)))
+                                      (wildcard-to-regexp (nth 1 cell))
                                     ""))))
     (unless (alist-get (car current) filters nil nil #'equal)
       (when current (push current filters)))
