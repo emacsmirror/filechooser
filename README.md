@@ -55,9 +55,9 @@ By default, `filechooser` uses a new frame for presenting the file selection dia
 ### File selection interface
 By default `completing-read` based interfaces are used for all operations. These interfaces are governed by the value of `filechooser-choose-file`, `filechooser-choose-files` and `filechooser-choose-directory`. The value of each of the these variables is a function that is called to do completion, see their doc strings for what is expected from these functions.
 
-The only builtin alternative to default values is `filechooser-dired`. You can use,
+The only builtin alternative to default values is `filechooser-with-dired`. You can use,
 ```emacs-lisp
-(setq filechooser-choose-files 'filechooser-dired)
+(setq filechooser-choose-files #'filechooser-with-dired)
 ```
 to change to a dired based selection for multiple files. In this mode the file chooser frame will have a dired buffer selected. To select files navigate to the desired directory. Mark the files to be selected and press `C-c C-c` to finish. `C-c C-k` aborts the selection process. Filters are available in this mode too and can be changed using `C-f`.
 
