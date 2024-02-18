@@ -429,10 +429,10 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
         (revert-buffer)))
     (setq marked nil unmarked nil timer nil))
 
-  (defun filechooser--process-changed-marks (beg end length)
-    "Deal with change in mark from BEG to END with LENGTH."
+  (defun filechooser--process-changed-marks (beg end _length)
+    "Deal with change in mark from BEG to END."
     (when (and (derived-mode-p 'dired-mode)
-               (eq length 0) (eq (1+ beg) end)
+               (eq (1+ beg) end)
                (not (invisible-p (1- (pos-eol)))))
       (save-excursion
         (goto-char beg)
