@@ -302,6 +302,10 @@ If MULTIPLE is non-nil `completing-read-multiple' is used."
                     (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
                                       filechooser--filters))
                     dir default)))
+    (when (equal result default)
+      (setq result (expand-file-name default dir)))
+    (when (and default (file-directory-p result))
+      (setq result (expand-file-name default result)))
     (if (or mustmatch (not (file-exists-p result)))
         result
       (filechooser--handle-exisiting-file result dir filters))))
