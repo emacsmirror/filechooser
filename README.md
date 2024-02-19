@@ -42,6 +42,58 @@ to `~/.config/xdg-desktop-portal/portals.conf`. For older versions add your `$XD
 3. Copy the `org.gnu.Emacs.FileChooser.service` file `/usr/share/dbus-1/services/`.
 4. Restart `xdg-desktop-portal` by using `systemctl --user restart xdg-desktop-portal.service`.
 
+### NixOS
+Here's how to install this package on NixOS.
+
+`configuration.nix:`
+```
+{ pkgs, ... }:
+
+{
+  xdg.portal = {
+    enable = true;
+    xdgOpenUsePortal = true;
+
+    extraPortals = [
+        # Add any fallback portals here
+        pkgs.xdg-desktop-portal-gtk
+
+        # Won't be needed with more recent xdg-desktop-portal versions
+        (import ./emacs-portal.nix { inherit pkgs; })
+      ];
+      config.common = {
+        default = [ "gtk" ];
+
+        "org.freedesktop.impl.portal.FileChooser" = "emacs";
+    };
+  };
+}
+```
+
+`emacs-portal.nix:`
+```
+{ pkgs }:
+with pkgs;
+
+stdenv.mkDerivation {
+  pname = "Emacs portal";
+  version = "git";
+
+  src = fetchGit {
+      name = "filechooser";
+      url = "https://codeberg.org/rahguzar/filechooser";
+      rev = "866304ab4244865108e12499f6e3be63e4981f92";
+    };
+
+  installPhase = ''
+    mkdir -p $out/share/dbus-1/services/;
+    cp org.gnu.Emacs.FileChooser.service $out/share/dbus-1/services/;
+    mkdir -p $out/share/xdg-desktop-portal/portals/;
+    cp emacs.portal $out/share/xdg-desktop-portal/portals/;
+    '';
+}
+```
+
 ## Usage
 Start an application that uses `xdg-desktop-portal`. An example which is my main use case is to launch `GTK_USE_PORTAL=1 firefox` and initiate a file selection dialogue. Unless you have changed the value of `filechooser-use-popup-frame, a minibuffer only Emacs frame will hopefully appear at this point. You can  select the file (or files depending on the request) by the same means you do usually in minibuffer.
 
