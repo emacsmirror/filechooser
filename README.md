@@ -36,12 +36,15 @@ If despite these limitations you want to test the package you can use one of the
 
 ### Manual Installation
 1. Place `filechooser.el` file in the load path and generate the autoloads file for it.
+
 2. Configure `xdg-desktop-portal` to use Emacs based filechooser. For recent versions this can be done by adding
 ```
 org.freedesktop.impl.portal.FileChooser=emacs
 ```
 to `~/.config/xdg-desktop-portal/portals.conf`. For older versions add your `$XDG_CURRENT_DESKTOP` to the `emacs.portal` file and copy it to `/usr/share/xdg-desktop-portal/portals/`.
+
 3. Copy the `org.gnu.Emacs.FileChooser.service` file `/usr/share/dbus-1/services/`.
+
 4. Restart `xdg-desktop-portal` by using `systemctl --user restart xdg-desktop-portal.service`.
 
 ### GNU ELPA
