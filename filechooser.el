@@ -126,6 +126,7 @@ UI of choice: usually RET."
 
 ;;;; Internal Variables
 (defvar filechooser--filters nil)
+(defvar filechooser--active-filters nil)
 (defvar filechooser--selection nil)
 (defvar filechooser--multiple-selection nil)
 (defvar filechooser--dired-buffers nil)
@@ -146,6 +147,16 @@ See Info node `(elisp) Programmed Completion' for CAND and TRANSFORM."
                         (expand-file-name name (dired-current-directory))
                       name)))
 
+(defun filechooser--filters (filters)
+  "Return FILTERS added to `filechooser-filters'."
+  (cl-delete-duplicates (append filechooser-filters filters)
+                        :test #'equal :key #'car))
+
+(defun filechooser--active-filters ()
+  "Return active filters."
+  (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
+                    filechooser--filters)))
+
 (defun filechooser-toggle-filter (arg)
   "Toggle a filter.
 With prefix ARG toggle multiple filters using `completing-read-multiple'."
@@ -163,6 +174,7 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
                             #'table nil t)))))
       (dolist (name names)
         (cl-callf not (cdr (alist-get name filechooser--filters nil nil #'equal))))
+      (setq filechooser--active-filters (filechooser--active-filters))
       (if (minibufferp)
           (throw 'continue t)
         (dolist (buf filechooser--dired-buffers)
@@ -185,18 +197,17 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
       (cl-callf not (cdr (alist-get (car current) regex-filters nil nil #'equal))))
     (nreverse regex-filters)))
 
-(defun filechooser--filters-predicate (filters)
-  "Make a predicate out of FILTERS."
-  (lambda (name)
-    (catch 'match
-      (dolist (filter filters)
-        (when (cond
-               ((stringp filter)
-                (string-match filter name))
-               ((functionp filter)
-                (funcall filter name))
-               ((error "Unknown filter %S" filter)))
-          (throw 'match t))))))
+(defun filechooser--filters-predicate (name)
+  "Return non-nil if NAME matches an active filter."
+  (catch 'match
+    (dolist (filter filechooser--active-filters)
+      (when (cond
+             ((stringp filter)
+              (string-match filter name))
+             ((functionp filter)
+              (funcall filter name))
+             ((error "Unknown filter %S" filter)))
+        (throw 'match t)))))
 
 ;;; Utility definitions
 (defmacro filechooser--maybe-with-new-frame (minibuffer &rest body)
@@ -259,8 +270,8 @@ See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
                  (group-function . filechooser--multiple-group-function)))
     (_ (completion-file-name-table str pred action))))
 
-(defun filechooser--read-file-name-1 (prompt &optional mustmatch filters dir default)
-  "Read a filename with PROMPT and predicate made from FILTERS.
+(defun filechooser--read-file-name-1 (prompt &optional mustmatch dir default)
+  "Read a filename with PROMPT and predicate made from active filters.
 MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
 If MULTIPLE is non-nil `completing-read-multiple' is used."
   (catch 'continue
@@ -269,8 +280,7 @@ If MULTIPLE is non-nil `completing-read-multiple' is used."
                                                    (current-local-map)))
           (when dir (setq default-directory dir)))
       (read-file-name
-       prompt dir default mustmatch nil
-       (when filters (filechooser--filters-predicate filters))))))
+       prompt dir default mustmatch nil #'filechooser--filters-predicate))))
 
 (defun filechooser--handle-exisiting-file (filename &optional dir filters)
   "Handle an existing FILENAME according to `filechooser-save-existing-files'.
@@ -297,18 +307,13 @@ are the filters to use in that case."
   "Read a filename with PROMPT and predicate made from FILTERS.
 MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
 If MULTIPLE is non-nil `completing-read-multiple' is used."
-  (let ((result t)
-        (filechooser--filters (cl-delete-duplicates
-                               (append filechooser-filters filters)
-                               :test #'equal :key #'car)))
+  (let* ((result t)
+         (filechooser--filters (filechooser--filters filters))
+         (filechooser--active-filters (filechooser--active-filters)))
     (while (eq t result)
       (when (minibufferp nil t)
         (abort-minibuffers))
-      (setq result (filechooser--read-file-name-1
-                    prompt mustmatch
-                    (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
-                                      filechooser--filters))
-                    dir default)))
+      (setq result (filechooser--read-file-name-1 prompt mustmatch dir default)))
     (when (equal result default)
       (setq result (expand-file-name default dir)))
     (when (and default (file-directory-p result))
@@ -360,14 +365,10 @@ files which satisfy one of the active filters from FILTERS or
 (defun filechooser--multiple-read-file-name (prompt &optional dir)
   "Read a filename with PROMPT and starting from DIR.
 MAP contains additional key bindigs."
-  (let ((result t)
-        filters)
+  (let ((result t))
     (while (eq t result)
       (when (minibufferp nil t)
         (abort-minibuffers))
-      (setq filters (delq nil (mapcar
-                               (lambda (flt) (if (cddr flt) (cadr flt)))
-                               filechooser--filters)))
       (setq result
             (catch 'continue
               (minibuffer-with-setup-hook
@@ -375,7 +376,7 @@ MAP contains additional key bindigs."
                                         filechooser-multiple-selection-map
                                         (current-local-map))))
                 (completing-read prompt #'filechooser--multiple-loop-table
-                                 (filechooser--filters-predicate filters) t
+                                 #'filechooser--filters-predicate t
                                  (abbreviate-file-name dir)
                                  'file-name-history)))))
     result))
@@ -390,10 +391,9 @@ files which satisfy one of the active filters from FILTERS or
 `filechooser-filters' are presented for completions."
   (setq dir (file-name-as-directory
              (expand-file-name (or dir default-directory))))
-  (let ((filechooser--filters (cl-delete-duplicates
-                               (append filechooser-filters filters)
-                               :test #'equal :key #'car))
-        selected filechooser--multiple-selection)
+  (let* ((filechooser--filters (filechooser--filters filters))
+         (filechooser--active-filters (filechooser--active-filters))
+         selected filechooser--multiple-selection)
     (filechooser--maybe-with-new-frame only
       (while (setq dir
                    (catch 'done
@@ -518,9 +518,10 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
   (unless (and filechooser--selection
                (file-directory-p (car filechooser--selection)))
     (setq filechooser--selection (list (make-temp-file "filechooser-selection-" t))))
-  (let ((overriding-map `((t . ,filechooser-dired-overriding-map)))
-        (filechooser--filters (append filechooser-filters filters))
-        filechooser--dired-buffers)
+  (let* ((overriding-map `((t . ,filechooser-dired-overriding-map)))
+         (filechooser--filters (filechooser--filters filters))
+         (filechooser--active-filters (filechooser--active-filters))
+         filechooser--dired-buffers)
     (save-window-excursion
       (unwind-protect
           (progn
@@ -571,16 +572,15 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
       (progn
         (setq end (progn (goto-char end) (forward-line 1) (pos-eol)))
         (setq beg (progn (goto-char beg) (forward-line -1) (goto-char (pos-bol))))
-        (let ((pred (filechooser--filters-predicate active)))
-          (while (< (point) end)
-            (when-let ((name (dired-get-filename 'no-dir t)))
-              (alter-text-property (1- (point)) (pos-eol) 'invisible
-                                   (lambda (val)
-                                     (setq val (ensure-list val))
-                                     (if (funcall pred name)
-                                         (cl-callf2 delq 'filechooser-filter val)
-                                       (cl-pushnew 'filechooser-filter val)))))
-            (forward-line))))
+        (while (< (point) end)
+          (when-let ((name (dired-get-filename 'no-dir t)))
+            (alter-text-property (1- (point)) (pos-eol) 'invisible
+                                 (lambda (val)
+                                   (setq val (ensure-list val))
+                                   (if (filechooser--filters-predicate name)
+                                       (cl-callf2 delq 'filechooser-filter val)
+                                     (cl-pushnew 'filechooser-filter val)))))
+          (forward-line)))
     (remove-from-invisibility-spec 'filechooser-filter))
   `(jit-lock-bounds ,beg . ,end))
 
