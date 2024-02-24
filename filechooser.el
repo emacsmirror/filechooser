@@ -28,7 +28,8 @@
 (defvar filechooser-dired-overriding-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'exit-recursive-edit)
-    (define-key map (kbd "C-c C-k") #'filechooser-abort )
+    (define-key map (kbd "C-c C-k") #'filechooser-abort)
+    (define-key map (kbd "C-c C-s") #'filechooser-dired-selection-mode)
     (define-key map (kbd "C-f") #'filechooser-toggle-filter)
     (define-key map [remap abort-recursive-edit] #'filechooser-abort)
     map)
@@ -109,6 +110,10 @@ It should have the same calling convention as
 I.e. the key that binds the equivalent of `exit-minibuffer' for the completion
 UI of choice: usually RET."
   :type (if (> emacs-major-version 27) 'key 'key-sequence))
+
+(defcustom filechooser-dired-marker ?>
+  "The character to mark selected files in `filechooser-with-dired'."
+  :type 'character)
 
 ;;;; Others
 (defvar filechooser-current-operation nil
@@ -418,6 +423,20 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
         names))))
 
 ;;; Dired based selection
+(define-minor-mode filechooser-dired-selection-mode
+  "Minor mode that is activated during Dired based file selection.
+It can be disabled to temporarily pause the selection and do other things
+without exiting file selection."
+  :global t
+  :keymap nil
+  (if filechooser-dired-selection-mode
+      (progn
+        (put 'filechooser-dired-marker 'filechooser--original dired-marker-char)
+        (setq dired-marker-char filechooser-dired-marker))
+    (setq dired-marker-char
+          (or (get 'filechooser-dired-marker 'filechooser--original)
+              dired-marker-char))))
+
 (declare-function filechooser--adjust-selection-buffer nil)
 (declare-function filechooser--process-changed-marks nil)
 
@@ -436,7 +455,8 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
 
   (defun filechooser--process-changed-marks (beg end _length)
     "Deal with change in mark from BEG to END."
-    (when (and (derived-mode-p 'dired-mode)
+    (when (and filechooser-dired-selection-mode
+               (derived-mode-p 'dired-mode)
                (eq (1+ beg) end)
                (not (invisible-p (1- (pos-eol)))))
       (save-excursion
@@ -491,10 +511,12 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                  (other-window 1)
                  (dired (or dir default-directory))
                  (funcall apply-filters nil)
+                 (filechooser-dired-selection-mode)
                  (unless (recursive-edit)
                    (filechooser--adjust-selection-buffer)
                    (with-current-buffer (cdr filechooser--selection)
                      (cdr dired-directory))))
+        (filechooser-dired-selection-mode -1)
         (cl-callf2 delq overriding-map emulation-mode-map-alists)
         (remove-hook 'window-buffer-change-functions apply-filters)
         (remove-hook 'after-change-functions #'filechooser--process-changed-marks)
