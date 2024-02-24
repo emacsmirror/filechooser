@@ -418,6 +418,9 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
         names))))
 
 ;;; Dired based selection
+(declare-function filechooser--adjust-selection-buffer nil)
+(declare-function filechooser--process-changed-marks nil)
+
 (let (marked unmarked timer)
   (defun filechooser--adjust-selection-buffer ()
     (when (buffer-live-p (cdr filechooser--selection))
@@ -445,7 +448,7 @@ is used, othewise the selected frame is used.  PROMPT and DIR are as in
           (push (dired-get-filename nil t) unmarked))
         (unless timer
           (setq timer (run-with-timer
-                       0.2 nil 'filechooser--adjust-selection-buffer)))))))
+                       0.2 nil #'filechooser--adjust-selection-buffer)))))))
 
 (defun filechooser-dired (&optional dir filters)
   "Select some files using Dired.
@@ -483,17 +486,18 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                    (jit-lock-mode t))
                  (push overriding-map emulation-mode-map-alists)
                  (add-hook 'window-buffer-change-functions apply-filters)
-                 (add-hook 'after-change-functions 'filechooser--process-changed-marks)
+                 (add-hook 'after-change-functions #'filechooser--process-changed-marks)
                  (setq filechooser--filters (append filechooser-filters filters))
                  (other-window 1)
                  (dired (or dir default-directory))
                  (funcall apply-filters nil)
                  (unless (recursive-edit)
+                   (filechooser--adjust-selection-buffer)
                    (with-current-buffer (cdr filechooser--selection)
                      (cdr dired-directory))))
         (cl-callf2 delq overriding-map emulation-mode-map-alists)
         (remove-hook 'window-buffer-change-functions apply-filters)
-        (remove-hook 'after-change-functions 'filechooser--process-changed-marks)
+        (remove-hook 'after-change-functions #'filechooser--process-changed-marks)
         (kill-buffer (cdr filechooser--selection))
         (setcdr filechooser--selection nil)
         (dolist (buf (match-buffers `(derived-mode . dired-mode) (frame-parameter nil 'buffer-list)))
