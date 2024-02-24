@@ -297,10 +297,10 @@ are the filters to use in that case."
   "Read a filename with PROMPT and predicate made from FILTERS.
 MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
 If MULTIPLE is non-nil `completing-read-multiple' is used."
-  (setq filechooser--filters (cl-delete-duplicates
-                              (append filechooser-filters filters)
-                              :test #'equal :key #'car))
-  (let ((result t))
+  (let ((result t)
+        (filechooser--filters (cl-delete-duplicates
+                               (append filechooser-filters filters)
+                               :test #'equal :key #'car)))
     (while (eq t result)
       (when (minibufferp nil t)
         (abort-minibuffers))
@@ -388,13 +388,12 @@ PROMPT is the minibuffer prompt. DIR is the directory where selection starts.
 FILTERS take the same form as elements of `filechooser-filters'. Only those
 files which satisfy one of the active filters from FILTERS or
 `filechooser-filters' are presented for completions."
-  (setq filechooser--filters
-        (cl-delete-duplicates
-         (append filechooser-filters filters)
-         :test #'equal :key #'car))
   (setq dir (file-name-as-directory
              (expand-file-name (or dir default-directory))))
-  (let (selected filechooser--multiple-selection)
+  (let ((filechooser--filters (cl-delete-duplicates
+                               (append filechooser-filters filters)
+                               :test #'equal :key #'car))
+        selected filechooser--multiple-selection)
     (filechooser--maybe-with-new-frame only
       (while (setq dir
                    (catch 'done
@@ -522,6 +521,7 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
   (let ((overriding-map `((t . ,filechooser-dired-overriding-map)))
         (selection-buffer (progn (setcdr filechooser--selection nil)
                                  (dired-noselect filechooser--selection)))
+        (filechooser--filters (append filechooser-filters filters))
         filechooser--dired-buffers)
     (save-window-excursion
       (unwind-protect
@@ -547,7 +547,6 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                  (push overriding-map emulation-mode-map-alists)
                  (add-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
                  (add-hook 'after-change-functions #'filechooser--process-changed-marks)
-                 (setq filechooser--filters (append filechooser-filters filters))
                  (other-window 1)
                  (dired (or dir default-directory))
                  (filechooser--dired-setup-buffer nil)
