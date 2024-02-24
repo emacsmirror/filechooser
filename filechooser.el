@@ -30,6 +30,7 @@
     (define-key map (kbd "C-c C-c") #'exit-recursive-edit)
     (define-key map (kbd "C-c C-k") #'filechooser-abort)
     (define-key map (kbd "C-c C-s") #'filechooser-dired-selection-mode)
+    (define-key map (kbd "C-c C-u") #'filechooser-dired-clear-selection)
     (define-key map (kbd "C-f") #'filechooser-toggle-filter)
     (define-key map [remap abort-recursive-edit] #'filechooser-abort)
     map)
@@ -438,19 +439,39 @@ without exiting file selection."
 
 (declare-function filechooser--adjust-selection-buffer nil)
 (declare-function filechooser--process-changed-marks nil)
+(declare-function filechooser-dired-clear-selection nil)
 
-(let (marked unmarked timer)
+(let ((selection (make-hash-table :test #'equal))
+      timer)
+
   (defun filechooser--adjust-selection-buffer ()
     (when (buffer-live-p (cdr filechooser--selection))
       (with-current-buffer (cdr filechooser--selection)
-        (cl-callf cl-set-difference (cdr dired-directory) unmarked :test #'equal)
-        (when marked
-          (cl-callf nreverse (cdr dired-directory))
-          (dolist (file marked)
-            (cl-pushnew file (cdr dired-directory) :test #'equal))
-          (cl-callf nreverse (cdr dired-directory)))
+        (setf (cdr dired-directory) (hash-table-keys selection))
         (revert-buffer)))
-    (setq marked nil unmarked nil timer nil))
+    (setq timer nil))
+
+  (defun filechooser-dired-clear-selection (&optional beg end)
+    "Remove files from BEG to END from selection."
+    (interactive)
+    (with-current-buffer (cdr filechooser--selection)
+      (let ((dired-marker-char (get 'filechooser-dired-marker 'filechooser--original))
+            (filechooser-dired-selection-mode nil))
+        (if (eq t end)
+            (dired-mark beg t)
+          (dired-mark-files-in-region (or beg (point-min)) (or end (point-max))))
+        (let ((files (delq nil (dired-map-over-marks
+                                (dired-get-filename nil t) nil))))
+          (dolist (buf filechooser--dired-buffers)
+            (when (buffer-live-p buf)
+              (with-current-buffer buf
+                (save-excursion
+                  (dolist (file files)
+                    (dired-goto-file file)
+                    (dired-unmark nil))))))
+          (dolist (file files)
+            (remhash file selection)))))
+    (filechooser--adjust-selection-buffer))
 
   (defun filechooser--process-changed-marks (beg end _length)
     "Deal with change in mark from BEG to END."
@@ -462,12 +483,17 @@ without exiting file selection."
         (goto-char beg)
         (when (and (re-search-forward dired-re-mark end t)
                    (eq (preceding-char) dired-marker-char))
-          (push (dired-get-filename nil t) marked))
+          (puthash (dired-get-filename nil t) t selection))
         (when (re-search-forward dired-re-maybe-mark (1+ end) t)
-          (push (dired-get-filename nil t) unmarked))
+          (remhash (dired-get-filename nil t) selection))
         (unless timer
           (setq timer (run-with-timer
                        0.2 nil #'filechooser--adjust-selection-buffer)))))))
+(defun filechooser-dired-deselect (arg &optional interactive)
+  "Deselect the file at point in selection buffer.
+See `dired-mark' for ARG and INTERACTIVE."
+  (interactive (list current-prefix-arg t))
+  (filechooser-dired-clear-selection arg interactive))
 (defun filechooser--dired-setup-buffer (_)
   "Setup the current buffer for file selection."
   (when (and (derived-mode-p 'dired-mode)
@@ -494,6 +520,8 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
       (unwind-protect
           (progn (setcdr filechooser--selection
                          (dired-noselect (list (car filechooser--selection))))
+                 (filechooser-dired-selection-mode)
+                 (filechooser-dired-clear-selection)
                  (display-buffer selection-buffer '(display-buffer-in-side-window
                                                     (side . left) (window-width . 0.3)))
                  (when-let ((win (get-buffer-window (cdr filechooser--selection))))
@@ -503,7 +531,12 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                    (setq mode-line-format " Selected files")
                    (dired-hide-details-mode)
                    (add-hook 'jit-lock-functions #'filechooser--dired-jit-abbreviate 95 t)
-                   (jit-lock-mode t))
+                   (jit-lock-mode t)
+                   (let ((map (make-sparse-keymap)))
+                     (set-keymap-parent map (current-local-map))
+                     (define-key map [remap dired-unmark] #'filechooser-dired-deselect)
+                     (define-key map [remap dired-unmark-all-marks] #'filechooser-dired-clear-selection)
+                     (use-local-map map)))
                  (push overriding-map emulation-mode-map-alists)
                  (add-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
                  (add-hook 'after-change-functions #'filechooser--process-changed-marks)
@@ -516,9 +549,9 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                    (filechooser--adjust-selection-buffer)
                    (with-current-buffer (cdr filechooser--selection)
                      (cdr dired-directory))))
-        (filechooser-dired-selection-mode -1)
         (cl-callf2 delq overriding-map emulation-mode-map-alists)
-        (remove-hook 'window-buffer-change-functions apply-filters)
+        (filechooser-dired-clear-selection)
+        (filechooser-dired-selection-mode -1)
         (remove-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
         (remove-hook 'after-change-functions #'filechooser--process-changed-marks)
         (kill-buffer (cdr filechooser--selection))
