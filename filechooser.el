@@ -116,6 +116,10 @@ UI of choice: usually RET."
   "The character to mark selected files in `filechooser-with-dired'."
   :type 'character)
 
+(defcustom filechooser-dired-selection-debounce 0.2
+  "Seconds to wait before updating selection buffer in `filechooser-with-dired'."
+  :type 'float)
+
 ;;;; Others
 (defvar filechooser-current-operation nil
   "When filechooser is active, this variable is set to the command being used.")
@@ -488,12 +492,15 @@ without exiting file selection."
           (remhash (dired-get-filename nil t) selection))
         (unless timer
           (setq timer (run-with-timer
-                       0.2 nil #'filechooser--adjust-selection-buffer)))))))
+                       filechooser-dired-selection-debounce nil
+                       #'filechooser--adjust-selection-buffer)))))))
+
 (defun filechooser-dired-deselect (arg &optional interactive)
   "Deselect the file at point in selection buffer.
 See `dired-mark' for ARG and INTERACTIVE."
   (interactive (list current-prefix-arg t))
   (filechooser-dired-clear-selection arg interactive))
+
 (defun filechooser--dired-setup-buffer (_)
   "Setup the current buffer for file selection."
   (when (and (derived-mode-p 'dired-mode)
