@@ -123,6 +123,7 @@ UI of choice: usually RET."
 (defvar filechooser--filters nil)
 (defvar filechooser--selection nil)
 (defvar filechooser--multiple-selection nil)
+(defvar filechooser--dired-buffers nil)
 
 ;;; Filters
 (defun filechooser--filters-group-fn (cand transform)
@@ -159,9 +160,7 @@ With prefix ARG toggle multiple filters using `completing-read-multiple'."
         (cl-callf not (cdr (alist-get name filechooser--filters nil nil #'equal))))
       (if (minibufferp)
           (throw 'continue t)
-        (dolist (buf (match-buffers
-                      `(derived-mode . dired-mode)
-                      (frame-parameter (selected-frame) 'buffer-list)))
+        (dolist (buf filechooser--dired-buffers)
           (with-current-buffer buf (jit-lock-refontify)))))))
 
 (defun filechooser--make-filters (opts)
@@ -469,6 +468,16 @@ without exiting file selection."
         (unless timer
           (setq timer (run-with-timer
                        0.2 nil #'filechooser--adjust-selection-buffer)))))))
+(defun filechooser--dired-setup-buffer (_)
+  "Setup the current buffer for file selection."
+  (when (and (derived-mode-p 'dired-mode)
+             (not (memq (current-buffer)
+                        `(,(cdr filechooser--selection)
+                          ,@filechooser--dired-buffers))))
+    (add-hook 'jit-lock-functions #'filechooser--dired-jit-filter 95 t)
+    (jit-lock-mode t)
+    (add-to-invisibility-spec 'filechooser-filter)
+    (cl-pushnew (current-buffer) filechooser--dired-buffers)))
 
 (defun filechooser-dired (&optional dir filters)
   "Select some files using Dired.
@@ -478,18 +487,9 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                (file-directory-p (car filechooser--selection)))
     (setq filechooser--selection (list (make-temp-file "filechooser-selection-" t))))
   (let ((overriding-map `((t . ,filechooser-dired-overriding-map)))
-        (apply-filters (lambda (_)
-                         (when (and (derived-mode-p 'dired-mode)
-                                    (not (eq (current-buffer)
-                                             (cdr filechooser--selection)))
-                                    (not (memq 'filechooser--dired-jit-filter
-                                               jit-lock-functions)))
-                           (add-hook 'jit-lock-functions
-                                     #'filechooser--dired-jit-filter 95 t)
-                           (jit-lock-mode t)
-                           (add-to-invisibility-spec 'filechooser-filter))))
         (selection-buffer (progn (setcdr filechooser--selection nil)
-                                 (dired-noselect filechooser--selection))))
+                                 (dired-noselect filechooser--selection)))
+        filechooser--dired-buffers)
     (save-window-excursion
       (unwind-protect
           (progn (setcdr filechooser--selection
@@ -505,12 +505,12 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
                    (add-hook 'jit-lock-functions #'filechooser--dired-jit-abbreviate 95 t)
                    (jit-lock-mode t))
                  (push overriding-map emulation-mode-map-alists)
-                 (add-hook 'window-buffer-change-functions apply-filters)
+                 (add-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
                  (add-hook 'after-change-functions #'filechooser--process-changed-marks)
                  (setq filechooser--filters (append filechooser-filters filters))
                  (other-window 1)
                  (dired (or dir default-directory))
-                 (funcall apply-filters nil)
+                 (filechooser--dired-setup-buffer nil)
                  (filechooser-dired-selection-mode)
                  (unless (recursive-edit)
                    (filechooser--adjust-selection-buffer)
@@ -519,10 +519,11 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
         (filechooser-dired-selection-mode -1)
         (cl-callf2 delq overriding-map emulation-mode-map-alists)
         (remove-hook 'window-buffer-change-functions apply-filters)
+        (remove-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
         (remove-hook 'after-change-functions #'filechooser--process-changed-marks)
         (kill-buffer (cdr filechooser--selection))
         (setcdr filechooser--selection nil)
-        (dolist (buf (match-buffers `(derived-mode . dired-mode) (frame-parameter nil 'buffer-list)))
+        (dolist (buf filechooser--dired-buffers)
           (with-current-buffer buf
             (jit-lock-unregister #'filechooser--dired-jit-filter)
             (remove-from-invisibility-spec 'filechooser-filter)))))))
