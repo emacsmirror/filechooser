@@ -127,8 +127,8 @@ UI of choice: usually RET."
 ;;;; Internal Variables
 (defvar filechooser--filters nil)
 (defvar filechooser--active-filters nil)
-(defvar filechooser--selection nil)
 (defvar filechooser--multiple-selection nil)
+(defvar filechooser--dired-selection nil)
 (defvar filechooser--dired-buffers nil)
 
 ;;; Filters
@@ -448,8 +448,8 @@ without exiting file selection."
       timer)
 
   (defun filechooser--adjust-selection-buffer ()
-    (when (buffer-live-p (cdr filechooser--selection))
-      (with-current-buffer (cdr filechooser--selection)
+    (when (buffer-live-p (cdr filechooser--dired-selection))
+      (with-current-buffer (cdr filechooser--dired-selection)
         (setf (cdr dired-directory) (hash-table-keys selection))
         (revert-buffer)))
     (setq timer nil))
@@ -457,7 +457,7 @@ without exiting file selection."
   (defun filechooser-dired-clear-selection (&optional beg end)
     "Remove files from BEG to END from selection."
     (interactive)
-    (with-current-buffer (cdr filechooser--selection)
+    (with-current-buffer (cdr filechooser--dired-selection)
       (let ((dired-marker-char (get 'filechooser-dired-marker 'filechooser--original))
             (filechooser-dired-selection-mode nil))
         (if (eq t end)
@@ -508,7 +508,7 @@ See `dired-mark' for ARG and INTERACTIVE."
   "Setup the current buffer for file selection."
   (when (and (derived-mode-p 'dired-mode)
              (not (memq (current-buffer)
-                        `(,(cdr filechooser--selection)
+                        `(,(cdr filechooser--dired-selection)
                           ,@filechooser--dired-buffers))))
     (add-hook 'jit-lock-functions #'filechooser--dired-jit-filter 95 t)
     (jit-lock-mode t)
@@ -519,9 +519,9 @@ See `dired-mark' for ARG and INTERACTIVE."
   "Select some files using Dired.
 Running this command pops a Dired for directory DIR, and enters a recursive
 editing session.  FILTERS are in the format of `filechooser-filters'."
-  (unless (and filechooser--selection
-               (file-directory-p (car filechooser--selection)))
-    (setq filechooser--selection (list (make-temp-file "filechooser-selection-" t))))
+  (unless (and filechooser--dired-selection
+               (file-directory-p (car filechooser--dired-selection)))
+    (setq filechooser--dired-selection (list (make-temp-file "filechooser-selection-" t))))
   (let* ((overriding-map `((t . ,filechooser-dired-overriding-map)))
          (filechooser--filters (filechooser--filters filters))
          (filechooser--active-filters (filechooser--active-filters))
@@ -530,14 +530,14 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
       (unwind-protect
           (progn
             (pop-to-buffer
-             (setcdr filechooser--selection
-                     (dired-noselect (list (car filechooser--selection))))
+             (setcdr filechooser--dired-selection
+                     (dired-noselect (list (car filechooser--dired-selection))))
              '(display-buffer-in-side-window
                (side . left) (window-width . 0.3)))
             (filechooser-dired-selection-mode)
             (filechooser-dired-clear-selection)
             (redisplay)
-            (with-current-buffer (cdr filechooser--selection)
+            (with-current-buffer (cdr filechooser--dired-selection)
               (setq mode-line-format " Selected files")
               (dired-hide-details-mode)
               (add-hook 'jit-lock-functions #'filechooser--dired-jit-abbreviate 95 t)
@@ -552,18 +552,17 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
             (other-window 1)
             (dired (or dir default-directory))
             (filechooser--dired-setup-buffer nil)
-            (filechooser-dired-selection-mode)
             (unless (recursive-edit)
               (filechooser--adjust-selection-buffer)
-              (with-current-buffer (cdr filechooser--selection)
+              (with-current-buffer (cdr filechooser--dired-selection)
                 (cdr dired-directory))))
         (cl-callf2 delq overriding-map emulation-mode-map-alists)
         (filechooser-dired-clear-selection)
         (filechooser-dired-selection-mode -1)
         (remove-hook 'window-buffer-change-functions #'filechooser--dired-setup-buffer)
         (remove-hook 'after-change-functions #'filechooser--process-changed-marks)
-        (kill-buffer (cdr filechooser--selection))
-        (setcdr filechooser--selection nil)
+        (kill-buffer (cdr filechooser--dired-selection))
+        (setcdr filechooser--dired-selection nil)
         (dolist (buf filechooser--dired-buffers)
           (with-current-buffer buf
             (jit-lock-unregister #'filechooser--dired-jit-filter)
