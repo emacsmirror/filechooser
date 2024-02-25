@@ -481,7 +481,8 @@ without exiting file selection."
     (when (and filechooser-dired-selection-mode
                (derived-mode-p 'dired-mode)
                (eq (1+ beg) end)
-               (not (invisible-p (1- (pos-eol)))))
+               (not (invisible-p (1- (pos-eol))))
+               (filechooser--filters-predicate (dired-get-filename 'no-dir t)))
       (save-excursion
         (goto-char beg)
         (when (and (re-search-forward dired-re-mark end t)
