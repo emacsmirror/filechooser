@@ -480,16 +480,19 @@ without exiting file selection."
     "Deal with change in mark from BEG to END."
     (when (and filechooser-dired-selection-mode
                (derived-mode-p 'dired-mode)
-               (eq (1+ beg) end)
-               (not (invisible-p (1- (pos-eol))))
-               (filechooser--filters-predicate (dired-get-filename 'no-dir t)))
+               (eq (1+ beg) end))
       (save-excursion
         (goto-char beg)
-        (when (and (re-search-forward dired-re-mark end t)
-                   (eq (preceding-char) dired-marker-char))
+        (cond
+         ((or (invisible-p (1- (pos-eol)))
+              (not (filechooser--filters-predicate
+                    (dired-get-filename 'no-dir t))))
+          (dired-unmark nil))
+         ((and (re-search-forward dired-re-mark end t)
+               (eq (preceding-char) dired-marker-char))
           (puthash (dired-get-filename nil t) t selection))
-        (when (re-search-forward dired-re-maybe-mark (1+ end) t)
-          (remhash (dired-get-filename nil t) selection))
+         ((and (re-search-forward dired-re-maybe-mark (1+ end) t))
+          (remhash (dired-get-filename nil t) selection)))
         (unless timer
           (setq timer (run-with-timer
                        filechooser-dired-selection-debounce nil
