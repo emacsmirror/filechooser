@@ -470,8 +470,8 @@ without exiting file selection."
               (with-current-buffer buf
                 (save-excursion
                   (dolist (file files)
-                    (dired-goto-file file)
-                    (dired-unmark nil))))))
+                    (when (dired-goto-file file)
+                      (dired-unmark nil)))))))
           (dolist (file files)
             (remhash file selection)))))
     (filechooser--adjust-selection-buffer))
@@ -568,21 +568,17 @@ editing session.  FILTERS are in the format of `filechooser-filters'."
 
 (defun filechooser--dired-jit-filter (beg end)
   "Hide files that don't match current filters from BEG to END."
-  (if-let ((active (delq nil (mapcar (lambda (flt) (if (cddr flt) (cadr flt)))
-                                     filechooser--filters))))
-      (progn
-        (setq end (progn (goto-char end) (forward-line 1) (pos-eol)))
-        (setq beg (progn (goto-char beg) (forward-line -1) (goto-char (pos-bol))))
-        (while (< (point) end)
-          (when-let ((name (dired-get-filename 'no-dir t)))
-            (alter-text-property (1- (point)) (pos-eol) 'invisible
-                                 (lambda (val)
-                                   (setq val (ensure-list val))
-                                   (if (filechooser--filters-predicate name)
-                                       (cl-callf2 delq 'filechooser-filter val)
-                                     (cl-pushnew 'filechooser-filter val)))))
-          (forward-line)))
-    (remove-from-invisibility-spec 'filechooser-filter))
+  (setq end (progn (goto-char end) (forward-line 1) (pos-eol)))
+  (setq beg (progn (goto-char beg) (forward-line -1) (goto-char (pos-bol))))
+  (while (< (point) end)
+    (when-let ((name (dired-get-filename 'no-dir t)))
+      (alter-text-property (1- (point)) (pos-eol) 'invisible
+                           (lambda (val)
+                             (setq val (ensure-list val))
+                             (if (filechooser--filters-predicate name)
+                                 (cl-callf2 delq 'filechooser-filter val)
+                               (cl-pushnew 'filechooser-filter val)))))
+    (forward-line))
   `(jit-lock-bounds ,beg . ,end))
 
 (defun filechooser--dired-jit-abbreviate (beg end)
