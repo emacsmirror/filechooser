@@ -25,29 +25,24 @@
 
 ;;; Variables
 ;;;; Keymaps
-(defvar filechooser-dired-overriding-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c") #'exit-recursive-edit)
-    (define-key map (kbd "C-c C-k") #'filechooser-abort)
-    (define-key map (kbd "C-c C-s") #'filechooser-dired-selection-mode)
-    (define-key map (kbd "C-c C-u") #'filechooser-dired-clear-selection)
-    (define-key map (kbd "C-f") #'filechooser-toggle-filter)
-    (define-key map [remap abort-recursive-edit] #'filechooser-abort)
-    map)
-  "Keymap used as `override-global-map' for Dired based file selection.")
+(defvar-keymap filechooser-dired-overriding-map
+  :doc "Keymap used as `override-global-map' for Dired based file selection."
+  "C-c C-c" #'exit-recursive-edit
+  "C-c C-k" #'filechooser-abort
+  "C-c C-s" #'filechooser-dired-selection-mode
+  "C-c C-u" #'filechooser-dired-clear-selection
+  "C-f" #'filechooser-toggle-filter
+  "<remap> <abort-recursive-edit>" #'filechooser-abort)
 
-(defvar filechooser-mininuffer-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-f") #'filechooser-toggle-filter)
-    (define-key map [remap abort-recursive-edit] #'filechooser-abort)
-    map))
+(defvar-keymap filechooser-mininuffer-map
+  "C-f" #'filechooser-toggle-filter
+  "<remap> <abort-recursive-edit>" #'filechooser-abort)
 
-(defvar filechooser-multiple-selection-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "M-TAB") #'filechooser-multiple-continue)
-    (define-key map (kbd "M-RET") #'filechooser-multiple-finalize-current-selection)
-    (define-key map (kbd "M-a") #'filechooser-multiple-select-all)
-    (make-composed-keymap map filechooser-mininuffer-map)))
+(defvar-keymap filechooser-multiple-selection-map
+  :parent filechooser-mininuffer-map
+  "M-TAB" #'filechooser-multiple-continue
+  "M-RET" #'filechooser-multiple-finalize-current-selection
+  "M-a" #'filechooser-multiple-select-all)
 
 ;;;; Custom variables
 (defgroup filechooser nil
@@ -76,8 +71,8 @@ If it is nil the selected frame is used instead."
   :type 'boolean)
 
 (defcustom filechooser-filters `(("Directories" filechooser-file-directory-p . t)
-                              ("Elisp files" ,(rx ".el" eos))
-                              ("Not dot files" ,(rx bos (not ?.))))
+                                 ("Elisp files" ,(rx ".el" eos))
+                                 ("Not dot files" ,(rx bos (not ?.))))
   "An alist of (NAME FILTER . BOOL).
 NAME should describe the filter which can either be a regexp
 or else a predicate function which takes a filename as argument.
