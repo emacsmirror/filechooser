@@ -4,7 +4,7 @@ filechooser is an Emacs package that enables the use of Emacs to select files in
 
 ## Limitations
 At this point `filechooser` has some serious limitations:
-1. It requires a running Emacs instance with server also running. If Emacs or server aren't running no file selection dialogues will appear and no error will be shown. More on this below.
+1. It requires a running Emacs instance with server also running. You can start the server by either running Emacs with the `--daemon` flag, or by typing `M-x server-start RET` in a non-daemon Emacs instance. If Emacs or server aren't running no file selection dialogues will appear and no error will be shown. More on this below.
 2. If the systemd service `xdg-desktop-portal.service` starts before Emacs, it will be need to be restarted after the server has started to make filechooser work. A possible mitigation is to have
 
 ```emacs-lisp
