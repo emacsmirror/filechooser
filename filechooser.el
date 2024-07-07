@@ -5,7 +5,7 @@
 ;; Author: rahguzar <rahguzar@zohomail.eu>
 ;; Maintainer: rahguzar <rahguzar@zohomail.eu>
 ;; Created: May 20, 2023
-;; Version: 0.2.0
+;; Version: 0.2.1
 ;; Keywords: convenience files tools unix
 ;; Homepage: https://codeberg.org/rahguzar/filechooser
 ;; Package-Requires: ((emacs "28.1") (compat "29.1"))
@@ -36,7 +36,8 @@
 
 (defvar-keymap filechooser-mininuffer-map
   "C-f" #'filechooser-toggle-filter
-  "<remap> <abort-recursive-edit>" #'filechooser-abort)
+  "<remap> <abort-recursive-edit>" #'filechooser-abort
+  "<remap> <abort-minibuffers>" #'filechooser-abort)
 
 (defvar-keymap filechooser-multiple-selection-map
   :parent filechooser-mininuffer-map
@@ -267,8 +268,7 @@ See Info node `(elisp) Programmed Completion' for STR, PRED and ACTION."
 
 (defun filechooser--read-file-name-1 (prompt &optional mustmatch dir default)
   "Read a filename with PROMPT and predicate made from active filters.
-MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename.
-If MULTIPLE is non-nil `completing-read-multiple' is used."
+MUSTMATCH and DIR are as in `read-file-name'.  DEFAULT is the default filename."
   (catch 'continue
     (minibuffer-with-setup-hook
         (lambda () (use-local-map (make-composed-keymap filechooser-mininuffer-map
