@@ -2,10 +2,10 @@
 
 ;; Copyright (C) 2024 Free Software Foundation, Inc.
 
-;; Author: rahguzar <rahguzar@zohomail.eu>
-;; Maintainer: rahguzar <rahguzar@zohomail.eu>
+;; Author: rahguzar <rahguzar@mailbox.org>
+;; Maintainer: rahguzar <rahguzar@mailbox.org>
 ;; Created: May 20, 2023
-;; Version: 0.2.1
+;; Version: 0.2.2
 ;; Keywords: convenience files tools unix
 ;; Homepage: https://codeberg.org/rahguzar/filechooser
 ;; Package-Requires: ((emacs "28.1") (compat "29.1"))
@@ -634,9 +634,9 @@ buffer.  FILTERS are used to restrict selection to a subset of files."
     filechooser-choose-directory
     (format "%s: " title)
     (dbus-byte-array-to-string
-     (butlast (caar (alist-get "current_folder" opts nil nil #'equal)))
-     (mapcar (lambda (file) (dbus-byte-array-to-string (butlast file)))
-             (caar (alist-get "files" opts nil nil #'equal)))))))
+     (butlast (caar (alist-get "current_folder" opts nil nil #'equal))))
+    (mapcar (lambda (file) (dbus-byte-array-to-string (butlast file)))
+            (caar (alist-get "files" opts nil nil #'equal))))))
 
 ;;; Starting Service
 ;;;###autoload
